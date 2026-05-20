@@ -2,8 +2,8 @@ import trueskill
 import itertools
 import json
 
-# Setup default TrueSkill environment (50.0 scale)
-env = trueskill.TrueSkill(mu=50.0, sigma=16.666, beta=8.333, tau=0.166, draw_probability=0.0)
+# Setup Elo-like TrueSkill environment (1500.0 scale)
+env = trueskill.TrueSkill(mu=1500.0, sigma=500.0, beta=250.0, tau=5.0, draw_probability=0.0)
 env.make_as_global()
 
 def update_ratings(team_a_ratings, team_b_ratings, team_a_won: bool):
