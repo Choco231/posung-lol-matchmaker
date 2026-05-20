@@ -207,11 +207,27 @@ export default function RecordMatch({ token }) {
     };
 
     if (recordMode === 'detailed') {
-      payload.team_a_bans = teamABans.filter(c => c).map((c, i) => ({ order: i + 1, champion: c }));
-      payload.team_b_bans = teamBBans.filter(c => c).map((c, i) => ({ order: i + 1, champion: c }));
+      // 벤 데이터 검증 (5개 모두 작성)
+      const hasEmptyABan = teamABans.some(c => !c);
+      const hasEmptyBBan = teamBBans.some(c => !c);
+      if (hasEmptyABan || hasEmptyBBan) {
+        alert('상세 기록 모드에서는 양 팀의 벤(각 5개)을 모두 등록해야 합니다.');
+        return;
+      }
+
+      // 픽 데이터 검증 (5개 모두 작성 및 포지션 지정)
+      const hasEmptyAPick = teamAPicks.some(p => !p.champion || !p.position);
+      const hasEmptyBPick = teamBPicks.some(p => !p.champion || !p.position);
+      if (hasEmptyAPick || hasEmptyBPick) {
+        alert('상세 기록 모드에서는 양 팀의 픽(각 5개) 챔피언 및 라인을 모두 등록해야 합니다.');
+        return;
+      }
+
+      payload.team_a_bans = teamABans.map((c, i) => ({ order: i + 1, champion: c }));
+      payload.team_b_bans = teamBBans.map((c, i) => ({ order: i + 1, champion: c }));
       payload.fearless_bans = fearlessBans;
-      payload.team_a_picks = teamAPicks.filter(p => p.champion).map(p => ({ order: p.order, champion: p.champion, position: p.position }));
-      payload.team_b_picks = teamBPicks.filter(p => p.champion).map(p => ({ order: p.order, champion: p.champion, position: p.position }));
+      payload.team_a_picks = teamAPicks.map(p => ({ order: p.order, champion: p.champion, position: p.position }));
+      payload.team_b_picks = teamBPicks.map(p => ({ order: p.order, champion: p.champion, position: p.position }));
     }
 
     try {
