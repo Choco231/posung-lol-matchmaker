@@ -62,59 +62,59 @@ def startup():
             ))
             db.commit()
 
-        # 20 test players — (name, top, jgl, mid, adc, sup, impossible[]) (30x scaled for 1500 scale)
+        # 20 test players — (name, top, jgl, mid, adc, sup, impossible[])
         TEST_PLAYERS = [
-            ("test01", 1800.0, 1320.0, 1500.0, 1200.0, 1080.0, []),
-            ("test02", 1320.0, 1920.0, 1500.0, 1260.0, 1140.0, []),
-            ("test03", 1260.0, 1380.0, 1980.0, 1320.0, 1200.0, []),
-            ("test04", 1200.0, 1260.0, 1440.0, 2040.0, 1320.0, []),
-            ("test05", 1140.0, 1200.0, 1320.0, 1380.0, 2100.0, []),
-            ("test06", 1680.0, 1200.0, 1200.0, 1680.0, 1320.0, ["mid", "jungle"]),
-            ("test07", 1200.0, 1620.0, 1200.0, 1320.0, 1620.0, ["top", "mid"]),
-            ("test08", 1320.0, 1320.0, 1560.0, 1200.0, 1260.0, []),
-            ("test09", 1440.0, 1440.0, 1440.0, 1440.0, 1440.0, []),
-            ("test10", 1080.0, 1080.0, 1080.0, 1080.0, 1080.0, []),
-            ("test11", 1920.0, 1500.0, 1320.0, 1200.0, 1200.0, ["adc", "support"]),
-            ("test12", 1260.0, 1980.0, 1320.0, 1260.0, 1200.0, ["top"]),
-            ("test13", 1200.0, 1260.0, 1860.0, 1320.0, 1260.0, []),
-            ("test14", 1320.0, 1200.0, 1320.0, 1920.0, 1200.0, []),
-            ("test15", 1200.0, 1260.0, 1320.0, 1260.0, 1800.0, []),
-            ("test16", 1560.0, 1560.0, 1200.0, 1200.0, 1560.0, ["mid", "adc"]),
-            ("test17", 1200.0, 1200.0, 1680.0, 1680.0, 1200.0, ["top", "support"]),
-            ("test18", 1740.0, 1260.0, 1260.0, 1740.0, 1260.0, []),
-            ("test19", 1380.0, 1740.0, 1380.0, 1380.0, 1380.0, []),
-            ("test20", 1500.0, 1500.0, 1500.0, 1500.0, 1500.0, []),
+            ("test01", 60.0, 44.0, 50.0, 40.0, 36.0, []),
+            ("test02", 44.0, 64.0, 50.0, 42.0, 38.0, []),
+            ("test03", 42.0, 46.0, 66.0, 44.0, 40.0, []),
+            ("test04", 40.0, 42.0, 48.0, 68.0, 44.0, []),
+            ("test05", 38.0, 40.0, 44.0, 46.0, 70.0, []),
+            ("test06", 56.0, 40.0, 40.0, 56.0, 44.0, ["mid", "jungle"]),
+            ("test07", 40.0, 54.0, 40.0, 44.0, 54.0, ["top", "mid"]),
+            ("test08", 44.0, 44.0, 52.0, 40.0, 42.0, []),
+            ("test09", 48.0, 48.0, 48.0, 48.0, 48.0, []),
+            ("test10", 36.0, 36.0, 36.0, 36.0, 36.0, []),
+            ("test11", 64.0, 50.0, 44.0, 40.0, 40.0, ["adc", "support"]),
+            ("test12", 42.0, 66.0, 44.0, 42.0, 40.0, ["top"]),
+            ("test13", 40.0, 42.0, 62.0, 44.0, 42.0, []),
+            ("test14", 44.0, 40.0, 44.0, 64.0, 40.0, []),
+            ("test15", 40.0, 42.0, 44.0, 42.0, 60.0, []),
+            ("test16", 52.0, 52.0, 40.0, 40.0, 52.0, ["mid", "adc"]),
+            ("test17", 40.0, 40.0, 56.0, 56.0, 40.0, ["top", "support"]),
+            ("test18", 58.0, 42.0, 42.0, 58.0, 42.0, []),
+            ("test19", 46.0, 58.0, 46.0, 46.0, 46.0, []),
+            ("test20", 50.0, 50.0, 50.0, 50.0, 50.0, []),
         ]
         for name, top, jgl, mid, adc, sup, imp in TEST_PLAYERS:
             if not db.query(Player).filter(Player.name == name).first():
                 db.add(Player(
                     name=name,
                     top_mu=top, jungle_mu=jgl, mid_mu=mid, adc_mu=adc, support_mu=sup,
-                    top_sigma=500.0, jungle_sigma=500.0, mid_sigma=500.0, adc_sigma=500.0, support_sigma=500.0,
+                    top_sigma=16.666, jungle_sigma=16.666, mid_sigma=16.666, adc_sigma=16.666, support_sigma=16.666,
                     impossible_positions=json.dumps(imp),
                 ))
         db.commit()
 
-        # Database Migration: Auto Scale-up existing players from 50 scale to 1500 scale
+        # Database Migration: Auto Scale-down existing players from 1500 scale to 50 scale (100pt max Elo)
         players = db.query(Player).all()
         migrated = False
         for p in players:
-            # If any position has mu < 150.0, it is considered old scale (e.g. 50.0). Multiply all mu & sigma by 30
-            if p.top_mu < 150.0:
-                p.top_mu *= 30
-                p.top_sigma *= 30
-                p.jungle_mu *= 30
-                p.jungle_sigma *= 30
-                p.mid_mu *= 30
-                p.mid_sigma *= 30
-                p.adc_mu *= 30
-                p.adc_sigma *= 30
-                p.support_mu *= 30
-                p.support_sigma *= 30
+            # If any position has mu > 150.0, it is considered 1500 scale. Divide all mu & sigma by 30
+            if p.top_mu > 150.0:
+                p.top_mu /= 30
+                p.top_sigma /= 30
+                p.jungle_mu /= 30
+                p.jungle_sigma /= 30
+                p.mid_mu /= 30
+                p.mid_sigma /= 30
+                p.adc_mu /= 30
+                p.adc_sigma /= 30
+                p.support_mu /= 30
+                p.support_sigma /= 30
                 migrated = True
         if migrated:
             db.commit()
-            print("Successfully migrated all players' MMR scale from 50.0 to 1500.0!")
+            print("Successfully migrated all players' MMR scale from 1500.0 back to 50.0!")
     finally:
         db.close()
 

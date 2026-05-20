@@ -166,7 +166,7 @@ export default function VirtualDataEntry({ token, userInfo }) {
       return;
     }
 
-    const MAX_MMR_DIFF = 90.0; // 허용되는 최대 양 팀 평균 MMR 격차 (90점)
+    const MAX_MMR_DIFF = 3.0; // 허용되는 최대 양 팀 평균 MMR 격차 (3점)
 
     for (let attempt = 0; attempt < 2000; attempt++) {
       const picked = shuffle(players).slice(0, 10);
@@ -182,7 +182,7 @@ export default function VirtualDataEntry({ token, userInfo }) {
         const avgB = getTeamAvgMmr(assignB);
         const diff = Math.abs(avgA - avgB);
 
-        // 양 팀 평균 MMR 격차가 90점 이하인 경우에만 매칭 확정
+        // 양 팀 평균 MMR 격차가 3점 이하인 경우에만 매칭 확정
         if (diff <= MAX_MMR_DIFF) {
           setTeamA(assignA);
           setTeamB(assignB);
@@ -191,7 +191,7 @@ export default function VirtualDataEntry({ token, userInfo }) {
         }
       }
     }
-    alert(`양 팀 평균 MMR 격차 90점 이내의 가상 배치를 찾지 못했습니다. (선수들의 불가능 포지션 제한이 너무 많을 때 발생 가능)`);
+    alert(`양 팀 평균 MMR 격차 3점 이내의 가상 배치를 찾지 못했습니다. (선수들의 불가능 포지션 제한이 너무 많을 때 발생 가능)`);
   };
 
   const handleSlotClick = (team, pos) => {
