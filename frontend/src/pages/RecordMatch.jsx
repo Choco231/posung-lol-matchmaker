@@ -466,6 +466,23 @@ export default function RecordMatch({ token }) {
         </div>
       </div>
 
+      {/* 선수 목록 (팀 구성 아래로 이동) */}
+      <div style={{ padding: '1.5rem', borderRadius: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)', marginBottom: '2rem' }}>
+        <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-secondary)' }}>
+          {activeSlot ? `👇 [${activeSlot.team === 'A' ? 'Blue' : 'Red'} ${POS_LABELS[activeSlot.pos]}] 배치할 선수 선택` : '클릭해서 선택할 슬롯을 먼저 지정하세요'}
+        </h4>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
+          {players.map(p => (
+            <div key={p.id} style={chipStyle(p)} onClick={() => handlePlayerClick(p)}>
+              {p.name}
+              {activeSlot && ` (${p[`${activeSlot.pos}_mu`].toFixed(1)})`}
+              {getAssignedInfo(p.id) && <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', opacity: 0.7 }}>({getAssignedInfo(p.id).team})</span>}
+            </div>
+          ))}
+          {players.length === 0 && <span style={{ color: 'var(--text-secondary)' }}>배정할 수 있는 선수가 없습니다.</span>}
+        </div>
+      </div>
+
       {/* ── 상세 기록 모드: 벤/픽 섹션 ── */}
       {recordMode === 'detailed' && (
         <div style={{ marginBottom: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -474,6 +491,13 @@ export default function RecordMatch({ token }) {
           <div style={{ padding: '1.2rem', borderRadius: '12px', background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(168,85,247,0.25)' }}>
             <h4 style={{ margin: '0 0 0.8rem 0', color: '#a855f7', fontSize: '0.95rem' }}>
               🚫 피어리스 벤 <span style={{ fontSize: '0.75rem', color: '#9ca3af', fontWeight: 400 }}>(이전 내전 사용 챔피언, 순서 무관, 무제한)</span>
+              {fearlessBans.length > 0 && (
+                <span style={{
+                  marginLeft: '0.5rem', fontSize: '0.75rem', fontWeight: 600,
+                  padding: '0.15rem 0.5rem', borderRadius: '10px',
+                  background: 'rgba(168,85,247,0.25)', color: '#c084fc'
+                }}>총 {fearlessBans.length}개</span>
+              )}
             </h4>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.8rem' }}>
               {fearlessBans.map((c, i) => (
@@ -535,23 +559,6 @@ export default function RecordMatch({ token }) {
           </div>
         </div>
       )}
-
-      {/* 선수 목록 */}
-      <div style={{ padding: '1.5rem', borderRadius: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)' }}>
-        <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-secondary)' }}>
-          {activeSlot ? `👇 [${activeSlot.team === 'A' ? 'Blue' : 'Red'} ${POS_LABELS[activeSlot.pos]}] 배치할 선수 선택` : '클릭해서 선택할 슬롯을 먼저 지정하세요'}
-        </h4>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
-          {players.map(p => (
-            <div key={p.id} style={chipStyle(p)} onClick={() => handlePlayerClick(p)}>
-              {p.name}
-              {activeSlot && ` (${p[`${activeSlot.pos}_mu`].toFixed(1)})`}
-              {getAssignedInfo(p.id) && <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', opacity: 0.7 }}>({getAssignedInfo(p.id).team})</span>}
-            </div>
-          ))}
-          {players.length === 0 && <span style={{ color: 'var(--text-secondary)' }}>배정할 수 있는 선수가 없습니다.</span>}
-        </div>
-      </div>
 
       {/* 챔피언 선택 모달 */}
       <ChampionSelectModal
