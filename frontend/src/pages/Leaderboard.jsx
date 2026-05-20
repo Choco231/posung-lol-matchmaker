@@ -79,7 +79,7 @@ export default function Leaderboard() {
         <br />
         <span style={{ fontSize: '0.8rem' }}>컬럼 헤더를 클릭하면 해당 포지션 기준으로 정렬됩니다.</span>
       </p>
-      <div style={{ overflowX: 'auto' }}>
+      <div className="table-container">
         <table>
           <thead>
             <tr>

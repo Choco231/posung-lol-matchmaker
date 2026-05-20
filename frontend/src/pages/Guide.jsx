@@ -102,7 +102,7 @@ export default function Guide() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
         {sections.map((sec, idx) => (
-          <div key={idx} className="card" style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start', padding: '1.5rem' }}>
+          <div key={idx} className="card guide-card" style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start', padding: '1.5rem' }}>
             <div style={{
               fontSize: '2.5rem',
               background: 'rgba(94, 106, 210, 0.1)',
