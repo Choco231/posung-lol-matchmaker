@@ -1,0 +1,27 @@
+services:
+  backend:
+    build: ./backend
+    image: loltc-backend
+    container_name: loltc-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+
+  frontend:
+    build: ./frontend
+    image: loltc-frontend
+    container_name: loltc-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - USE_DOCKER=true
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
