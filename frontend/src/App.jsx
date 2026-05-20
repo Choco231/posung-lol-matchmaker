@@ -170,7 +170,7 @@ function App() {
 
           {token && (
             <>
-              {navLink('/players',    '👥 선수 관리')}
+              {navLink('/players',    '👥 선수 추가')}
               {navLink('/teambuilder','⚖️ 팀 짜기 (10인)')}
               {navLink('/record',     '⚔️ 실전 결과 기록')}
               {navLink('/virtual',    '🧪 가상 데이터 입력')}
