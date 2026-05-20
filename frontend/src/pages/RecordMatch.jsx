@@ -19,6 +19,24 @@ export default function RecordMatch({ token }) {
   const [teamB, setTeamB] = useState({ top: '', jungle: '', mid: '', adc: '', support: '' });
   const [activeSlot, setActiveSlot] = useState(null);
 
+  const getTeamAvgMmr = (assign) => {
+    let sum = 0;
+    let count = 0;
+    POSITIONS.forEach(pos => {
+      const pId = assign[pos];
+      const player = players.find(p => String(p.id) === String(pId));
+      if (player) {
+        if (pos === 'top') sum += player.top_mu;
+        else if (pos === 'jungle') sum += player.jungle_mu;
+        else if (pos === 'mid') sum += player.mid_mu;
+        else if (pos === 'adc') sum += player.adc_mu;
+        else if (pos === 'support') sum += player.support_mu;
+        count++;
+      }
+    });
+    return count > 0 ? sum / count : 0;
+  };
+
   useEffect(() => {
     // 실전에서는 본인도 출전할 수 있으므로 필터링하지 않음
     axios.get('/api/players').then(res => setPlayers(res.data));
@@ -55,7 +73,7 @@ export default function RecordMatch({ token }) {
     }
 
     try {
-      await axios.post('/api/matches', {
+      const res = await axios.post('/api/matches', {
         team_a_ids: aIds.map(Number),
         team_b_ids: bIds.map(Number),
         winner,
@@ -63,7 +81,20 @@ export default function RecordMatch({ token }) {
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert(`[실전 기록] ${winner === 'A' ? '블루' : '레드'}팀 승리 결과가 반영되었습니다! 랭킹 페이지를 확인하세요.`);
+
+      // 백엔드로부터 받은 MMR 변화량을 팝업에 출력
+      let alertMsg = `🏆 [실전 기록] ${winner === 'A' ? '블루' : '레드'}팀 승리 결과가 반영되었습니다!\n\n⚡ 실시간 MMR 변동 상세:\n`;
+      if (res.data && res.data.mmr_changes) {
+        res.data.mmr_changes.forEach(c => {
+          const sign = c.diff >= 0 ? '+' : '';
+          const posLabel = POS_LABELS[c.position];
+          alertMsg += `- [${posLabel}] ${c.player_name}: ${c.prev_mmr.toFixed(1)} -> ${c.new_mmr.toFixed(1)} (${sign}${c.diff.toFixed(1)})\n`;
+        });
+      } else {
+        alertMsg += `MMR 갱신이 완료되었습니다. (상세 변화량을 불러오지 못함)`;
+      }
+
+      alert(alertMsg);
       setActiveSlot(null);
     } catch (err) {
       alert('오류 발생: ' + (err.response?.data?.detail || err.message));
@@ -200,7 +231,10 @@ export default function RecordMatch({ token }) {
 
       <div style={{ display: 'flex', gap: '2rem', marginBottom: '2.5rem' }}>
         <div style={{ flex: 1 }}>
-          <h3 style={{ color: '#3b82f6', marginBottom: '1rem', textAlign: 'center' }}>🔵 Blue Team</h3>
+          <h3 style={{ color: '#3b82f6', marginBottom: '0.2rem', textAlign: 'center' }}>🔵 Blue Team</h3>
+          <div style={{ textAlign: 'center', marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+            평균 MMR: {getTeamAvgMmr(teamA).toFixed(1)}
+          </div>
           {POSITIONS.map(pos => {
             const pId = teamA[pos];
             const p = getPlayerById(pId);
@@ -208,7 +242,7 @@ export default function RecordMatch({ token }) {
               <div key={`A_${pos}`} style={slotStyle('A', pos)} onClick={() => handleSlotClick('A', pos)}>
                 <span style={{ width: '4rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{POS_LABELS[pos]}</span>
                 <span style={{ fontWeight: p ? 700 : 400, color: p ? '#3b82f6' : 'var(--text-secondary)' }}>
-                  {p ? p.name : '선택...'}
+                  {p ? `${p.name} (${p[`${pos}_mu`].toFixed(1)})` : '선택...'}
                 </span>
               </div>
             );
@@ -219,7 +253,10 @@ export default function RecordMatch({ token }) {
         </div>
 
         <div style={{ flex: 1 }}>
-          <h3 style={{ color: '#ef4444', marginBottom: '1rem', textAlign: 'center' }}>🔴 Red Team</h3>
+          <h3 style={{ color: '#ef4444', marginBottom: '0.2rem', textAlign: 'center' }}>🔴 Red Team</h3>
+          <div style={{ textAlign: 'center', marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+            평균 MMR: {getTeamAvgMmr(teamB).toFixed(1)}
+          </div>
           {POSITIONS.map(pos => {
             const pId = teamB[pos];
             const p = getPlayerById(pId);
@@ -227,7 +264,7 @@ export default function RecordMatch({ token }) {
               <div key={`B_${pos}`} style={slotStyle('B', pos)} onClick={() => handleSlotClick('B', pos)}>
                 <span style={{ width: '4rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{POS_LABELS[pos]}</span>
                 <span style={{ fontWeight: p ? 700 : 400, color: p ? '#ef4444' : 'var(--text-secondary)' }}>
-                  {p ? p.name : '선택...'}
+                  {p ? `${p.name} (${p[`${pos}_mu`].toFixed(1)})` : '선택...'}
                 </span>
               </div>
             );
@@ -252,6 +289,7 @@ export default function RecordMatch({ token }) {
               onClick={() => handlePlayerClick(p)}
             >
               {p.name}
+              {activeSlot && ` (${p[`${activeSlot.pos}_mu`].toFixed(1)})`}
               {getAssignedInfo(p.id) && <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', opacity: 0.7 }}>
                 ({getAssignedInfo(p.id).team})
               </span>}

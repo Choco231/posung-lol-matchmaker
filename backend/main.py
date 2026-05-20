@@ -447,16 +447,38 @@ def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current
         sigma = getattr(p, f"{positions[i]}_sigma")
         team_b_ratings.append(trueskill.Rating(mu=mu, sigma=sigma))
 
+    # 변화량을 측정하기 위해 이전 MMR(mu) 백업
+    team_a_prev_mus = [getattr(p, f"{positions[i]}_mu") for i, p in enumerate(team_a_players)]
+    team_b_prev_mus = [getattr(p, f"{positions[i]}_mu") for i, p in enumerate(team_b_players)]
+
     team_a_won = req.winner == "A"
     new_team_a, new_team_b = update_ratings(team_a_ratings, team_b_ratings, team_a_won)
 
+    mmr_changes = []
+
     for i, p in enumerate(team_a_players):
-        setattr(p, f"{positions[i]}_mu",    new_team_a[i].mu)
-        setattr(p, f"{positions[i]}_sigma", new_team_a[i].sigma)
+        pos = positions[i]
+        setattr(p, f"{pos}_mu",    new_team_a[i].mu)
+        setattr(p, f"{pos}_sigma", new_team_a[i].sigma)
+        mmr_changes.append({
+            "player_name": p.name,
+            "position": pos,
+            "prev_mmr": team_a_prev_mus[i],
+            "new_mmr": new_team_a[i].mu,
+            "diff": new_team_a[i].mu - team_a_prev_mus[i]
+        })
 
     for i, p in enumerate(team_b_players):
-        setattr(p, f"{positions[i]}_mu",    new_team_b[i].mu)
-        setattr(p, f"{positions[i]}_sigma", new_team_b[i].sigma)
+        pos = positions[i]
+        setattr(p, f"{pos}_mu",    new_team_b[i].mu)
+        setattr(p, f"{pos}_sigma", new_team_b[i].sigma)
+        mmr_changes.append({
+            "player_name": p.name,
+            "position": pos,
+            "prev_mmr": team_b_prev_mus[i],
+            "new_mmr": new_team_b[i].mu,
+            "diff": new_team_b[i].mu - team_b_prev_mus[i]
+        })
 
     match = Match(
         is_virtual=req.is_virtual,
@@ -476,4 +498,7 @@ def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current
     db.add(match)
     db.commit()
 
-    return {"message": "Match recorded and ratings updated"}
+    return {
+        "message": "Match recorded and ratings updated",
+        "mmr_changes": mmr_changes
+    }
