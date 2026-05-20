@@ -353,16 +353,22 @@ export default function RecordMatch({ token }) {
             {/* 승리 팀 알림 안내 */}
             <div style={{
               textAlign: 'center',
-              padding: '0.8rem',
-              borderRadius: '8px',
-              backgroundColor: mmrModalData.winner === 'A' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-              border: mmrModalData.winner === 'A' ? '1px solid #3b82f6' : '1px solid #ef4444',
-              color: mmrModalData.winner === 'A' ? '#60a5fa' : '#f87171',
-              fontWeight: 700,
-              fontSize: '1.1rem',
-              marginBottom: '1.5rem'
+              padding: '1rem',
+              borderRadius: '10px',
+              background: mmrModalData.winner === 'A' 
+                ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' 
+                : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+              color: '#ffffff',
+              fontWeight: 800,
+              fontSize: '1.25rem',
+              textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+              boxShadow: mmrModalData.winner === 'A'
+                ? '0 4px 15px rgba(37, 99, 235, 0.4)'
+                : '0 4px 15px rgba(220, 38, 38, 0.4)',
+              marginBottom: '1.8rem',
+              letterSpacing: '0.5px'
             }}>
-              {mmrModalData.winner === 'A' ? '🔵 Blue Team (블루팀)' : '🔴 Red Team (레드팀)'} 승리!
+              🎉 {mmrModalData.winner === 'A' ? '🔵 Blue Team (블루팀)' : '🔴 Red Team (레드팀)'} 승리!
             </div>
 
             {/* 블루/레드 컬럼 양분하여 표시 */}
