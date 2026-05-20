@@ -148,7 +148,25 @@ export default function VirtualDataEntry({ token, userInfo }) {
       return;
     }
 
-    for (let attempt = 0; attempt < 200; attempt++) {
+    const MAX_MMR_DIFF = 5.0; // 허용되는 최대 양 팀 평균 MMR 격차 (5점)
+
+    const getTeamAvgMmr = (assign) => {
+      let sum = 0;
+      POSITIONS.forEach(pos => {
+        const pId = assign[pos];
+        const player = players.find(p => String(p.id) === String(pId));
+        if (player) {
+          if (pos === 'top') sum += player.top_mu;
+          else if (pos === 'jungle') sum += player.jungle_mu;
+          else if (pos === 'mid') sum += player.mid_mu;
+          else if (pos === 'adc') sum += player.adc_mu;
+          else if (pos === 'support') sum += player.support_mu;
+        }
+      });
+      return sum / 5;
+    };
+
+    for (let attempt = 0; attempt < 2000; attempt++) {
       const picked = shuffle(players).slice(0, 10);
       const half  = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
       const idxA  = half.slice(0, 5).map(i => picked[i]);
@@ -158,13 +176,20 @@ export default function VirtualDataEntry({ token, userInfo }) {
       const assignB = tryAssignWeighted(idxB);
 
       if (assignA && assignB) {
-        setTeamA(assignA);
-        setTeamB(assignB);
-        setActiveSlot(null);
-        return;
+        const avgA = getTeamAvgMmr(assignA);
+        const avgB = getTeamAvgMmr(assignB);
+        const diff = Math.abs(avgA - avgB);
+
+        // 양 팀 평균 MMR 격차가 5점 이하인 경우에만 매칭 확정
+        if (diff <= MAX_MMR_DIFF) {
+          setTeamA(assignA);
+          setTeamB(assignB);
+          setActiveSlot(null);
+          return;
+        }
       }
     }
-    alert('불가능 포지션 제약으로 랜덤 배치를 찾지 못했습니다.');
+    alert(`양 팀 평균 MMR 격차 5점 이내의 가상 배치를 찾지 못했습니다. (선수들의 불가능 포지션 제한이 너무 많을 때 발생 가능)`);
   };
 
   const handleSlotClick = (team, pos) => {
