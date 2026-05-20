@@ -18,6 +18,7 @@ export default function RecordMatch({ token }) {
   const [teamA, setTeamA] = useState({ top: '', jungle: '', mid: '', adc: '', support: '' });
   const [teamB, setTeamB] = useState({ top: '', jungle: '', mid: '', adc: '', support: '' });
   const [activeSlot, setActiveSlot] = useState(null);
+  const [mmrModalData, setMmrModalData] = useState(null);
 
   const getTeamAvgMmr = (assign) => {
     let sum = 0;
@@ -82,19 +83,13 @@ export default function RecordMatch({ token }) {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // 백엔드로부터 받은 MMR 변화량을 팝업에 출력
-      let alertMsg = `🏆 [실전 기록] ${winner === 'A' ? '블루' : '레드'}팀 승리 결과가 반영되었습니다!\n\n⚡ 실시간 MMR 변동 상세:\n`;
+      // 백엔드로부터 받은 MMR 변화량을 커스텀 모달에 주입
       if (res.data && res.data.mmr_changes) {
-        res.data.mmr_changes.forEach(c => {
-          const sign = c.diff >= 0 ? '+' : '';
-          const posLabel = POS_LABELS[c.position];
-          alertMsg += `- [${posLabel}] ${c.player_name}: ${c.prev_mmr.toFixed(1)} -> ${c.new_mmr.toFixed(1)} (${sign}${c.diff.toFixed(1)})\n`;
-        });
+        setMmrModalData({ winner, changes: res.data.mmr_changes });
       } else {
-        alertMsg += `MMR 갱신이 완료되었습니다. (상세 변화량을 불러오지 못함)`;
+        alert(`🏆 [실전 기록] ${winner === 'A' ? '블루' : '레드'}팀 승리 결과가 반영되었습니다!`);
       }
-
-      alert(alertMsg);
+      
       setActiveSlot(null);
     } catch (err) {
       alert('오류 발생: ' + (err.response?.data?.detail || err.message));
@@ -298,6 +293,148 @@ export default function RecordMatch({ token }) {
           {players.length === 0 && <span style={{ color: 'var(--text-secondary)' }}>배정할 수 있는 선수가 없습니다.</span>}
         </div>
       </div>
+
+      {/* MMR 변동 상세 커스텀 모달 */}
+      {mmrModalData && (
+        <>
+          {/* 뒷배경 오버레이 */}
+          <div 
+            onClick={() => setMmrModalData(null)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 9999
+            }}
+          />
+          {/* 모달 윈도우 */}
+          <div 
+            style={{
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '95%',
+              maxWidth: '760px',
+              backgroundColor: '#1f2937',
+              border: '1px solid #374151',
+              borderRadius: '16px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+              padding: '2rem',
+              zIndex: 10000,
+              color: '#f9fafb'
+            }}
+          >
+            {/* 헤더 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #374151', paddingBottom: '1rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                🏆 실전 매치 결과 기록 완료
+              </h2>
+              <button 
+                onClick={() => setMmrModalData(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#9ca3af',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer',
+                  padding: '0.2rem 0.5rem',
+                  lineHeight: 1
+                }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* 승리 팀 알림 안내 */}
+            <div style={{
+              textAlign: 'center',
+              padding: '0.8rem',
+              borderRadius: '8px',
+              backgroundColor: mmrModalData.winner === 'A' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+              border: mmrModalData.winner === 'A' ? '1px solid #3b82f6' : '1px solid #ef4444',
+              color: mmrModalData.winner === 'A' ? '#60a5fa' : '#f87171',
+              fontWeight: 700,
+              fontSize: '1.1rem',
+              marginBottom: '1.5rem'
+            }}>
+              {mmrModalData.winner === 'A' ? '🔵 Blue Team (블루팀)' : '🔴 Red Team (레드팀)'} 승리!
+            </div>
+
+            {/* 블루/레드 컬럼 양분하여 표시 */}
+            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+              {/* 블루 팀 변동 내역 */}
+              <div style={{ flex: 1, minWidth: '300px', backgroundColor: 'rgba(0,0,0,0.15)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                <h3 style={{ color: '#60a5fa', margin: '0 0 0.8rem 0', fontSize: '1.05rem', borderBottom: '1px solid rgba(59, 130, 246, 0.2)', paddingBottom: '0.4rem' }}>
+                  🔵 Blue Team MMR 변동
+                </h3>
+                {mmrModalData.changes.filter(c => c.team === 'A').map(c => {
+                  const isUp = c.diff > 0;
+                  const diffColor = isUp ? '#60a5fa' : c.diff < 0 ? '#f87171' : '#94a3b8';
+                  const sign = isUp ? '+' : '';
+                  return (
+                    <div key={c.player_name} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem', fontSize: '0.9rem' }}>
+                      <span style={{ color: '#d1d5db' }}>
+                        <strong style={{ color: '#9ca3af', marginRight: '0.4rem', fontSize: '0.78rem' }}>{POS_LABELS[c.position]}</strong>
+                        {c.player_name}
+                      </span>
+                      <span>
+                        <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>{c.prev_mmr.toFixed(1)} → {c.new_mmr.toFixed(1)}</span>
+                        <strong style={{ marginLeft: '0.5rem', color: diffColor }}>({sign}{c.diff.toFixed(1)})</strong>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 레드 팀 변동 내역 */}
+              <div style={{ flex: 1, minWidth: '300px', backgroundColor: 'rgba(0,0,0,0.15)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                <h3 style={{ color: '#f87171', margin: '0 0 0.8rem 0', fontSize: '1.05rem', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', paddingBottom: '0.4rem' }}>
+                  🔴 Red Team MMR 변동
+                </h3>
+                {mmrModalData.changes.filter(c => c.team === 'B').map(c => {
+                  const isUp = c.diff > 0;
+                  const diffColor = isUp ? '#60a5fa' : c.diff < 0 ? '#f87171' : '#94a3b8';
+                  const sign = isUp ? '+' : '';
+                  return (
+                    <div key={c.player_name} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem', fontSize: '0.9rem' }}>
+                      <span style={{ color: '#d1d5db' }}>
+                        <strong style={{ color: '#9ca3af', marginRight: '0.4rem', fontSize: '0.78rem' }}>{POS_LABELS[c.position]}</strong>
+                        {c.player_name}
+                      </span>
+                      <span>
+                        <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>{c.prev_mmr.toFixed(1)} → {c.new_mmr.toFixed(1)}</span>
+                        <strong style={{ marginLeft: '0.5rem', color: diffColor }}>({sign}{c.diff.toFixed(1)})</strong>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 하단 닫기 단추 */}
+            <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                className="btn" 
+                onClick={() => setMmrModalData(null)}
+                style={{
+                  background: 'var(--accent)',
+                  color: '#fff',
+                  padding: '0.6rem 1.5rem',
+                  fontSize: '0.92rem',
+                  fontWeight: 600
+                }}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

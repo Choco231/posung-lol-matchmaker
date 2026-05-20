@@ -461,6 +461,7 @@ def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current
         setattr(p, f"{pos}_mu",    new_team_a[i].mu)
         setattr(p, f"{pos}_sigma", new_team_a[i].sigma)
         mmr_changes.append({
+            "team": "A",
             "player_name": p.name,
             "position": pos,
             "prev_mmr": team_a_prev_mus[i],
@@ -473,6 +474,7 @@ def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current
         setattr(p, f"{pos}_mu",    new_team_b[i].mu)
         setattr(p, f"{pos}_sigma", new_team_b[i].sigma)
         mmr_changes.append({
+            "team": "B",
             "player_name": p.name,
             "position": pos,
             "prev_mmr": team_b_prev_mus[i],
