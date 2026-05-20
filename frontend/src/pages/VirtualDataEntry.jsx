@@ -82,6 +82,24 @@ export default function VirtualDataEntry({ token, userInfo }) {
   const [teamB, setTeamB] = useState({ top: '', jungle: '', mid: '', adc: '', support: '' });
   const [activeSlot, setActiveSlot] = useState(null); // e.g., { team: 'A', pos: 'top' }
 
+  const getTeamAvgMmr = (assign) => {
+    let sum = 0;
+    let count = 0;
+    POSITIONS.forEach(pos => {
+      const pId = assign[pos];
+      const player = players.find(p => String(p.id) === String(pId));
+      if (player) {
+        if (pos === 'top') sum += player.top_mu;
+        else if (pos === 'jungle') sum += player.jungle_mu;
+        else if (pos === 'mid') sum += player.mid_mu;
+        else if (pos === 'adc') sum += player.adc_mu;
+        else if (pos === 'support') sum += player.support_mu;
+        count++;
+      }
+    });
+    return count > 0 ? sum / count : 0;
+  };
+
   useEffect(() => {
     axios.get('/api/players').then(res => {
       const cleanLolId = (id) => {
@@ -149,22 +167,6 @@ export default function VirtualDataEntry({ token, userInfo }) {
     }
 
     const MAX_MMR_DIFF = 5.0; // 허용되는 최대 양 팀 평균 MMR 격차 (5점)
-
-    const getTeamAvgMmr = (assign) => {
-      let sum = 0;
-      POSITIONS.forEach(pos => {
-        const pId = assign[pos];
-        const player = players.find(p => String(p.id) === String(pId));
-        if (player) {
-          if (pos === 'top') sum += player.top_mu;
-          else if (pos === 'jungle') sum += player.jungle_mu;
-          else if (pos === 'mid') sum += player.mid_mu;
-          else if (pos === 'adc') sum += player.adc_mu;
-          else if (pos === 'support') sum += player.support_mu;
-        }
-      });
-      return sum / 5;
-    };
 
     for (let attempt = 0; attempt < 2000; attempt++) {
       const picked = shuffle(players).slice(0, 10);
@@ -309,7 +311,10 @@ export default function VirtualDataEntry({ token, userInfo }) {
       {/* 배정 슬롯 영역 */}
       <div style={{ display: 'flex', gap: '2rem', marginBottom: '2.5rem' }}>
         <div style={{ flex: 1 }}>
-          <h3 style={{ color: '#3b82f6', marginBottom: '1rem', textAlign: 'center' }}>🔵 Blue Team</h3>
+          <h3 style={{ color: '#3b82f6', marginBottom: '0.2rem', textAlign: 'center' }}>🔵 Blue Team</h3>
+          <div style={{ textAlign: 'center', marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+            평균 MMR: {getTeamAvgMmr(teamA).toFixed(1)}
+          </div>
           {POSITIONS.map(pos => {
             const pId = teamA[pos];
             const p = getPlayerById(pId);
@@ -317,7 +322,7 @@ export default function VirtualDataEntry({ token, userInfo }) {
               <div key={`A_${pos}`} style={slotStyle('A', pos)} onClick={() => handleSlotClick('A', pos)}>
                 <span style={{ width: '4rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{POS_LABELS[pos]}</span>
                 <span style={{ fontWeight: p ? 700 : 400, color: p ? '#3b82f6' : 'var(--text-secondary)' }}>
-                  {p ? p.name : '선택...'}
+                  {p ? `${p.name} (${p[`${pos}_mu`].toFixed(1)})` : '선택...'}
                 </span>
               </div>
             );
@@ -328,7 +333,10 @@ export default function VirtualDataEntry({ token, userInfo }) {
         </div>
 
         <div style={{ flex: 1 }}>
-          <h3 style={{ color: '#ef4444', marginBottom: '1rem', textAlign: 'center' }}>🔴 Red Team</h3>
+          <h3 style={{ color: '#ef4444', marginBottom: '0.2rem', textAlign: 'center' }}>🔴 Red Team</h3>
+          <div style={{ textAlign: 'center', marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+            평균 MMR: {getTeamAvgMmr(teamB).toFixed(1)}
+          </div>
           {POSITIONS.map(pos => {
             const pId = teamB[pos];
             const p = getPlayerById(pId);
@@ -336,7 +344,7 @@ export default function VirtualDataEntry({ token, userInfo }) {
               <div key={`B_${pos}`} style={slotStyle('B', pos)} onClick={() => handleSlotClick('B', pos)}>
                 <span style={{ width: '4rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{POS_LABELS[pos]}</span>
                 <span style={{ fontWeight: p ? 700 : 400, color: p ? '#ef4444' : 'var(--text-secondary)' }}>
-                  {p ? p.name : '선택...'}
+                  {p ? `${p.name} (${p[`${pos}_mu`].toFixed(1)})` : '선택...'}
                 </span>
               </div>
             );
@@ -362,6 +370,7 @@ export default function VirtualDataEntry({ token, userInfo }) {
               onClick={() => handlePlayerClick(p)}
             >
               {p.name}
+              {activeSlot && ` (${p[`${activeSlot.pos}_mu`].toFixed(1)})`}
               {getAssignedInfo(p.id) && <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', opacity: 0.7 }}>
                 ({getAssignedInfo(p.id).team})
               </span>}
