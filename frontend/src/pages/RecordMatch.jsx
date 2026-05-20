@@ -371,10 +371,10 @@ export default function RecordMatch({ token }) {
               🎉 {mmrModalData.winner === 'A' ? '🔵 Blue Team (블루팀)' : '🔴 Red Team (레드팀)'} 승리!
             </div>
 
-            {/* 블루/레드 컬럼 양분하여 표시 */}
-            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+            {/* 블루/레드 상하단으로 분리하여 표시 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               {/* 블루 팀 변동 내역 */}
-              <div style={{ flex: 1, minWidth: '300px', backgroundColor: 'rgba(0,0,0,0.15)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+              <div style={{ backgroundColor: 'rgba(0,0,0,0.15)', padding: '1.2rem 1.5rem', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
                 <h3 style={{ color: '#60a5fa', margin: '0 0 0.8rem 0', fontSize: '1.05rem', borderBottom: '1px solid rgba(59, 130, 246, 0.2)', paddingBottom: '0.4rem' }}>
                   🔵 Blue Team MMR 변동
                 </h3>
@@ -398,7 +398,7 @@ export default function RecordMatch({ token }) {
               </div>
 
               {/* 레드 팀 변동 내역 */}
-              <div style={{ flex: 1, minWidth: '300px', backgroundColor: 'rgba(0,0,0,0.15)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+              <div style={{ backgroundColor: 'rgba(0,0,0,0.15)', padding: '1.2rem 1.5rem', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
                 <h3 style={{ color: '#f87171', margin: '0 0 0.8rem 0', fontSize: '1.05rem', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', paddingBottom: '0.4rem' }}>
                   🔴 Red Team MMR 변동
                 </h3>
