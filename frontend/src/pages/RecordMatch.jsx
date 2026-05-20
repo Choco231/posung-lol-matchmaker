@@ -420,7 +420,12 @@ export default function RecordMatch({ token }) {
           }}
         >
           <option value="">라인</option>
-          {POSITIONS.map(pos => <option key={pos} value={pos}>{POS_LABELS[pos]}</option>)}
+          {POSITIONS.map(pos => {
+            // 다른 픽 슬롯에서 이미 선택한 포지션들 수집
+            const isTaken = picks.some((p, pIdx) => pIdx !== idx && p.position === pos);
+            if (isTaken) return null;
+            return <option key={pos} value={pos}>{POS_LABELS[pos]}</option>;
+          })}
         </select>
       </div>
     );
