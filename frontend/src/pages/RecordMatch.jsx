@@ -13,9 +13,10 @@ function canPlay(player, position) {
   } catch { return true; }
 }
 
-// ── 챔피언 선택 모달 컴포넌트 ──────────────────────────────────
-function ChampionSelectModal({ open, onClose, onSelect, excludeChampions = [], title = '챔피언 선택' }) {
+// ── 챔피언 선택 모달 컴포넌트 (단일/멀티 선택 지원) ──────────────────
+function ChampionSelectModal({ open, onClose, onSelect, onMultiSelect, multi = false, excludeChampions = [], title = '챔피언 선택' }) {
   const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState([]);
 
   if (!open) return null;
 
@@ -23,9 +24,20 @@ function ChampionSelectModal({ open, onClose, onSelect, excludeChampions = [], t
     !excludeChampions.includes(c) && c.includes(search)
   );
 
+  const handleClose = () => { setSearch(''); setSelected([]); onClose(); };
+
+  const toggleChamp = (c) => {
+    setSelected(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
+  };
+
+  const handleConfirm = () => {
+    if (onMultiSelect) onMultiSelect(selected);
+    handleClose();
+  };
+
   return (
     <>
-      <div onClick={onClose} style={{
+      <div onClick={handleClose} style={{
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
         backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(3px)', zIndex: 9998
       }} />
@@ -37,8 +49,11 @@ function ChampionSelectModal({ open, onClose, onSelect, excludeChampions = [], t
         zIndex: 9999, color: '#f9fafb', display: 'flex', flexDirection: 'column'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>{title}</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
+          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>
+            {title}
+            {multi && selected.length > 0 && <span style={{ fontSize: '0.8rem', color: '#a855f7', marginLeft: '0.5rem', fontWeight: 400 }}>({selected.length}개 선택됨)</span>}
+          </h3>
+          <button onClick={handleClose} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
         </div>
         <input
           type="text"
@@ -56,23 +71,43 @@ function ChampionSelectModal({ open, onClose, onSelect, excludeChampions = [], t
           flex: 1, overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: '0.4rem',
           alignContent: 'flex-start'
         }}>
-          {filtered.map(c => (
-            <div
-              key={c}
-              onClick={() => { onSelect(c); onClose(); setSearch(''); }}
-              style={{
-                padding: '0.45rem 0.85rem', borderRadius: '6px', border: '1px solid #4b5563',
-                background: '#374151', color: '#e5e7eb', fontSize: '0.82rem', cursor: 'pointer',
-                transition: 'all 0.1s', userSelect: 'none'
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#4b5563'; e.currentTarget.style.borderColor = '#60a5fa'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#374151'; e.currentTarget.style.borderColor = '#4b5563'; }}
-            >
-              {c}
-            </div>
-          ))}
+          {filtered.map(c => {
+            const isSelected = multi && selected.includes(c);
+            return (
+              <div
+                key={c}
+                onClick={() => {
+                  if (multi) {
+                    toggleChamp(c);
+                  } else {
+                    onSelect(c); handleClose();
+                  }
+                }}
+                style={{
+                  padding: '0.45rem 0.85rem', borderRadius: '6px',
+                  border: isSelected ? '1px solid #a855f7' : '1px solid #4b5563',
+                  background: isSelected ? 'rgba(168,85,247,0.25)' : '#374151',
+                  color: isSelected ? '#d8b4fe' : '#e5e7eb',
+                  fontSize: '0.82rem', cursor: 'pointer',
+                  transition: 'all 0.1s', userSelect: 'none'
+                }}
+                onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.background = '#4b5563'; e.currentTarget.style.borderColor = '#60a5fa'; } }}
+                onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.background = '#374151'; e.currentTarget.style.borderColor = '#4b5563'; } }}
+              >
+                {isSelected && '✓ '}{c}
+              </div>
+            );
+          })}
           {filtered.length === 0 && <span style={{ color: '#6b7280', fontSize: '0.85rem' }}>검색 결과가 없습니다.</span>}
         </div>
+        {multi && (
+          <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+            <button onClick={handleClose} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #4b5563', background: 'transparent', color: '#9ca3af', fontSize: '0.85rem', cursor: 'pointer' }}>취소</button>
+            <button onClick={handleConfirm} disabled={selected.length === 0} style={{ padding: '0.5rem 1.2rem', borderRadius: '8px', border: 'none', background: selected.length > 0 ? '#a855f7' : '#4b5563', color: '#fff', fontSize: '0.85rem', fontWeight: 600, cursor: selected.length > 0 ? 'pointer' : 'not-allowed' }}>
+              {selected.length}개 추가
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
@@ -106,7 +141,7 @@ export default function RecordMatch({ token }) {
   );
 
   // 챔피언 모달 상태
-  const [champModal, setChampModal] = useState({ open: false, callback: null, title: '', excludes: [] });
+  const [champModal, setChampModal] = useState({ open: false, callback: null, multiCallback: null, multi: false, title: '', excludes: [] });
 
   const getTeamAvgMmr = (assign) => {
     let sum = 0; let count = 0;
@@ -146,7 +181,12 @@ export default function RecordMatch({ token }) {
 
   const openChampModal = (callback, title, extraExcludes = []) => {
     const excludes = [...getAllUsedChampions(), ...extraExcludes];
-    setChampModal({ open: true, callback, title, excludes });
+    setChampModal({ open: true, callback, multiCallback: null, multi: false, title, excludes });
+  };
+
+  const openMultiChampModal = (multiCallback, title, extraExcludes = []) => {
+    const excludes = [...getAllUsedChampions(), ...extraExcludes];
+    setChampModal({ open: true, callback: null, multiCallback, multi: true, title, excludes });
   };
 
   const handleSubmit = async (winner) => {
@@ -452,7 +492,7 @@ export default function RecordMatch({ token }) {
             </div>
             <button
               className="btn"
-              onClick={() => openChampModal((c) => setFearlessBans([...fearlessBans, c]), '피어리스 벤 챔피언 추가')}
+              onClick={() => openMultiChampModal((champs) => setFearlessBans([...fearlessBans, ...champs]), '피어리스 벤 챔피언 추가 (여러 개 선택 가능)')}
               style={{
                 background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)',
                 color: '#c084fc', fontSize: '0.8rem', padding: '0.4rem 0.9rem', borderRadius: '8px', cursor: 'pointer'
@@ -518,6 +558,8 @@ export default function RecordMatch({ token }) {
         open={champModal.open}
         onClose={() => setChampModal({ ...champModal, open: false })}
         onSelect={(c) => { if (champModal.callback) champModal.callback(c); }}
+        onMultiSelect={(champs) => { if (champModal.multiCallback) champModal.multiCallback(champs); }}
+        multi={champModal.multi}
         excludeChampions={champModal.excludes}
         title={champModal.title}
       />
