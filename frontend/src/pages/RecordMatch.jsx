@@ -240,6 +240,21 @@ export default function RecordMatch({ token }) {
       } else {
         alert(`🏆 [실전 기록] ${winner === 'A' ? '블루' : '레드'}팀 승리 결과가 반영되었습니다!`);
       }
+      
+      // 상세 기록 모드였던 경우, 이번 판의 픽 10개를 다음 판의 피어리스 벤에 누적하고 벤/픽 초기화
+      if (recordMode === 'detailed') {
+        const pickedChamps = [
+          ...teamAPicks.map(p => p.champion),
+          ...teamBPicks.map(p => p.champion)
+        ].filter(Boolean);
+        
+        setFearlessBans(prev => [...prev, ...pickedChamps]);
+        setTeamABans(['', '', '', '', '']);
+        setTeamBBans(['', '', '', '', '']);
+        setTeamAPicks(POSITIONS.map((_, i) => ({ order: i + 1, champion: '', position: '' })));
+        setTeamBPicks(POSITIONS.map((_, i) => ({ order: i + 1, champion: '', position: '' })));
+      }
+
       setActiveSlot(null);
     } catch (err) {
       alert('오류 발생: ' + (err.response?.data?.detail || err.message));
