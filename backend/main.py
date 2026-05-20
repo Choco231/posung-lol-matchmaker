@@ -47,6 +47,26 @@ def startup():
             conn.execute(text("ALTER TABLE matches ADD COLUMN recorded_by_name VARCHAR"))
             conn.commit()
 
+        # Ban/Pick columns migration
+        if "record_mode" not in match_cols:
+            conn.execute(text("ALTER TABLE matches ADD COLUMN record_mode VARCHAR DEFAULT 'simple'"))
+            conn.commit()
+        if "team_a_bans" not in match_cols:
+            conn.execute(text("ALTER TABLE matches ADD COLUMN team_a_bans VARCHAR DEFAULT '[]'"))
+            conn.commit()
+        if "team_b_bans" not in match_cols:
+            conn.execute(text("ALTER TABLE matches ADD COLUMN team_b_bans VARCHAR DEFAULT '[]'"))
+            conn.commit()
+        if "fearless_bans" not in match_cols:
+            conn.execute(text("ALTER TABLE matches ADD COLUMN fearless_bans VARCHAR DEFAULT '[]'"))
+            conn.commit()
+        if "team_a_picks" not in match_cols:
+            conn.execute(text("ALTER TABLE matches ADD COLUMN team_a_picks VARCHAR DEFAULT '[]'"))
+            conn.commit()
+        if "team_b_picks" not in match_cols:
+            conn.execute(text("ALTER TABLE matches ADD COLUMN team_b_picks VARCHAR DEFAULT '[]'"))
+            conn.commit()
+
     # 2) Seed the master admin account + 20 test players
     db = SessionLocal()
     try:
@@ -164,6 +184,12 @@ class RecordMatchRequest(BaseModel):
     team_b_ids: List[int]  # [top, jgl, mid, adc, sup]
     winner: str            # "A" or "B"
     is_virtual: bool = False
+    record_mode: str = "simple"  # "simple" or "detailed"
+    team_a_bans: List[dict] = []  # [{"order": 1, "champion": "아리"}, ...]
+    team_b_bans: List[dict] = []  
+    fearless_bans: List[str] = []  # ["가렌", "다리우스", ...]
+    team_a_picks: List[dict] = []  # [{"order": 1, "champion": "아리", "position": "mid"}, ...]
+    team_b_picks: List[dict] = []
 
 class UserUpdateAdmin(BaseModel):
     display_name: str = ""
@@ -290,6 +316,12 @@ def get_admin_matches(page: int = 1, limit: int = 20, is_virtual: Optional[bool]
                 "adc": pid_to_name.get(m.team_b_adc_id, "?"),
                 "support": pid_to_name.get(m.team_b_support_id, "?"),
             },
+            "record_mode": m.record_mode or "simple",
+            "team_a_bans": json.loads(m.team_a_bans) if m.team_a_bans else [],
+            "team_b_bans": json.loads(m.team_b_bans) if m.team_b_bans else [],
+            "fearless_bans": json.loads(m.fearless_bans) if m.fearless_bans else [],
+            "team_a_picks": json.loads(m.team_a_picks) if m.team_a_picks else [],
+            "team_b_picks": json.loads(m.team_b_picks) if m.team_b_picks else [],
         }
         for m in matches
     ]
@@ -517,6 +549,12 @@ def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current
         team_b_mid_id=req.team_b_ids[2],
         team_b_adc_id=req.team_b_ids[3],
         team_b_support_id=req.team_b_ids[4],
+        record_mode=req.record_mode,
+        team_a_bans=json.dumps(req.team_a_bans, ensure_ascii=False),
+        team_b_bans=json.dumps(req.team_b_bans, ensure_ascii=False),
+        fearless_bans=json.dumps(req.fearless_bans, ensure_ascii=False),
+        team_a_picks=json.dumps(req.team_a_picks, ensure_ascii=False),
+        team_b_picks=json.dumps(req.team_b_picks, ensure_ascii=False),
     )
     db.add(match)
     db.commit()

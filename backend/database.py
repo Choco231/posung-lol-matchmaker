@@ -62,6 +62,23 @@ class Match(Base):
     team_b_adc_id = Column(Integer, ForeignKey("players.id"))
     team_b_support_id = Column(Integer, ForeignKey("players.id"))
 
+    # 기록 모드: "simple" (간단) / "detailed" (상세 - 벤픽 포함)
+    record_mode = Column(String, default="simple")
+    
+    # 벤 데이터 (JSON) - 각 팀별 5개, 순서 포함
+    # 형식: [{"order": 1, "champion": "아리"}, ...]
+    team_a_bans = Column(String, default='[]')
+    team_b_bans = Column(String, default='[]')
+    
+    # 피어리스 벤 (JSON) - 이전 내전에서 사용한 챔피언들, 순서 무관
+    # 형식: ["가렌", "다리우스", ...]
+    fearless_bans = Column(String, default='[]')
+    
+    # 픽 데이터 (JSON) - 각 팀별 5개, 뽑은 순서 + 포지션 포함
+    # 형식: [{"order": 1, "champion": "아리", "position": "mid"}, ...]
+    team_a_picks = Column(String, default='[]')
+    team_b_picks = Column(String, default='[]')
+
 Base.metadata.create_all(bind=engine)
 
 def get_db():
