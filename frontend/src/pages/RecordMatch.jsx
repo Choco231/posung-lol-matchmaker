@@ -320,16 +320,17 @@ export default function RecordMatch({ token }) {
           }
         }}
         style={{
-          padding: '0.5rem 0.8rem', borderRadius: '8px', border: `1px solid ${champ ? teamColor : '#4b5563'}`,
-          background: champ ? `${teamColor}15` : '#1f2937', cursor: 'pointer', fontSize: '0.82rem',
-          color: champ ? '#e5e7eb' : '#6b7280', minWidth: '80px', textAlign: 'center',
-          transition: 'all 0.15s', position: 'relative'
+          flex: '1 1 0px', minWidth: '70px', padding: '0.45rem 0.2rem', borderRadius: '6px',
+          border: `1px solid ${champ ? teamColor : '#4b5563'}`,
+          background: champ ? `${teamColor}15` : '#1f2937', cursor: 'pointer', fontSize: '0.78rem',
+          color: champ ? '#e5e7eb' : '#6b7280', textAlign: 'center',
+          transition: 'all 0.15s', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
         }}
       >
         {champ ? (
-          <span>{idx + 1}. {champ} <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>✕</span></span>
+          <span title={champ}>{idx + 1}. {champ} <span style={{ fontSize: '0.65rem', opacity: 0.6 }}>✕</span></span>
         ) : (
-          <span>{idx + 1}. 벤 선택</span>
+          <span>{idx + 1}. 벤</span>
         )}
       </div>
     );
@@ -340,28 +341,41 @@ export default function RecordMatch({ token }) {
     const pick = picks[idx];
     return (
       <div key={idx} style={{
-        display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem'
+        flex: '1 1 0px', minWidth: '95px', display: 'flex', flexDirection: 'column',
+        gap: '0.3rem', background: 'rgba(0,0,0,0.1)', padding: '0.5rem', borderRadius: '8px',
+        border: `1px solid ${pick.champion ? teamColor : '#374151'}`
       }}>
-        <span style={{ fontSize: '0.8rem', color: '#9ca3af', width: '1.5rem', textAlign: 'right' }}>{idx + 1}.</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#9ca3af' }}>
+          <span>{idx + 1}픽</span>
+          {pick.champion && (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                const np = [...picks]; np[idx] = { ...np[idx], champion: '' }; setPicks(np);
+              }}
+              style={{ cursor: 'pointer', color: '#ef4444', fontWeight: 'bold', fontSize: '0.8rem', padding: '0 0.2rem' }}
+            >
+              ✕
+            </span>
+          )}
+        </div>
         <div
           onClick={() => {
-            if (pick.champion) {
-              const np = [...picks]; np[idx] = { ...np[idx], champion: '' }; setPicks(np);
-            } else {
+            if (!pick.champion) {
               openChampModal((c) => {
                 const np = [...picks]; np[idx] = { ...np[idx], champion: c }; setPicks(np);
               }, `${teamColor === '#3b82f6' ? '블루' : '레드'}팀 ${idx + 1}번째 픽`);
             }
           }}
           style={{
-            flex: 1, padding: '0.5rem 0.7rem', borderRadius: '8px', cursor: 'pointer',
-            border: `1px solid ${pick.champion ? teamColor : '#4b5563'}`,
-            background: pick.champion ? `${teamColor}15` : '#1f2937', fontSize: '0.82rem',
-            color: pick.champion ? '#e5e7eb' : '#6b7280', transition: 'all 0.15s'
+            padding: '0.35rem 0.2rem', borderRadius: '4px', cursor: pick.champion ? 'default' : 'pointer',
+            background: pick.champion ? `${teamColor}15` : '#1f2937', fontSize: '0.8rem',
+            color: pick.champion ? '#e5e7eb' : '#6b7280', textAlign: 'center',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
           }}
+          title={pick.champion || '챔피언 선택'}
         >
-          {pick.champion || '챔피언 선택'}
-          {pick.champion && <span style={{ fontSize: '0.7rem', opacity: 0.6, marginLeft: '0.3rem' }}>✕</span>}
+          {pick.champion || '선택...'}
         </div>
         <select
           value={pick.position}
@@ -369,11 +383,12 @@ export default function RecordMatch({ token }) {
             const np = [...picks]; np[idx] = { ...np[idx], position: e.target.value }; setPicks(np);
           }}
           style={{
-            padding: '0.45rem 0.5rem', borderRadius: '6px', border: '1px solid #4b5563',
-            background: '#1f2937', color: '#e5e7eb', fontSize: '0.78rem', cursor: 'pointer'
+            padding: '0.2rem 0.3rem', borderRadius: '4px', border: '1px solid #4b5563',
+            background: '#111827', color: '#e5e7eb', fontSize: '0.72rem', cursor: 'pointer',
+            outline: 'none', width: '100%'
           }}
         >
-          <option value="">포지션</option>
+          <option value="">라인</option>
           {POSITIONS.map(pos => <option key={pos} value={pos}>{POS_LABELS[pos]}</option>)}
         </select>
       </div>
@@ -527,34 +542,38 @@ export default function RecordMatch({ token }) {
           </div>
 
           {/* 벤 섹션 */}
-          <div style={{ display: 'flex', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
             {/* 블루팀 벤 */}
-            <div style={{ flex: 1, padding: '1.2rem', borderRadius: '12px', background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(59,130,246,0.2)' }}>
+            <div style={{ flex: 1, minWidth: '280px', padding: '1.2rem', borderRadius: '12px', background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(59,130,246,0.2)' }}>
               <h4 style={{ margin: '0 0 0.8rem 0', color: '#60a5fa', fontSize: '0.95rem' }}>🔵 블루팀 벤</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                 {[0, 1, 2, 3, 4].map(i => renderBanSlot(teamABans, setTeamABans, i, '#3b82f6'))}
               </div>
             </div>
             {/* 레드팀 벤 */}
-            <div style={{ flex: 1, padding: '1.2rem', borderRadius: '12px', background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            <div style={{ flex: 1, minWidth: '280px', padding: '1.2rem', borderRadius: '12px', background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(239,68,68,0.2)' }}>
               <h4 style={{ margin: '0 0 0.8rem 0', color: '#f87171', fontSize: '0.95rem' }}>🔴 레드팀 벤</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                 {[0, 1, 2, 3, 4].map(i => renderBanSlot(teamBBans, setTeamBBans, i, '#ef4444'))}
               </div>
             </div>
           </div>
 
           {/* 픽 섹션 */}
-          <div style={{ display: 'flex', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
             {/* 블루팀 픽 */}
-            <div style={{ flex: 1, padding: '1.2rem', borderRadius: '12px', background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(59,130,246,0.2)' }}>
+            <div style={{ flex: 1, minWidth: '280px', padding: '1.2rem', borderRadius: '12px', background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(59,130,246,0.2)' }}>
               <h4 style={{ margin: '0 0 0.8rem 0', color: '#60a5fa', fontSize: '0.95rem' }}>🔵 블루팀 픽</h4>
-              {[0, 1, 2, 3, 4].map(i => renderPickSlot(teamAPicks, setTeamAPicks, i, '#3b82f6'))}
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                {[0, 1, 2, 3, 4].map(i => renderPickSlot(teamAPicks, setTeamAPicks, i, '#3b82f6'))}
+              </div>
             </div>
             {/* 레드팀 픽 */}
-            <div style={{ flex: 1, padding: '1.2rem', borderRadius: '12px', background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            <div style={{ flex: 1, minWidth: '280px', padding: '1.2rem', borderRadius: '12px', background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(239,68,68,0.2)' }}>
               <h4 style={{ margin: '0 0 0.8rem 0', color: '#f87171', fontSize: '0.95rem' }}>🔴 레드팀 픽</h4>
-              {[0, 1, 2, 3, 4].map(i => renderPickSlot(teamBPicks, setTeamBPicks, i, '#ef4444'))}
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                {[0, 1, 2, 3, 4].map(i => renderPickSlot(teamBPicks, setTeamBPicks, i, '#ef4444'))}
+              </div>
             </div>
           </div>
         </div>
