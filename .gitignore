@@ -12,6 +12,10 @@ env/
 *.db
 *.sqlite3
 
+# Backend utility/temp files
+backend/db_manager.py
+backend/delete_all_players.py
+
 # Node.js (React)
 node_modules/
 dist/
