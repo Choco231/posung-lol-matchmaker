@@ -474,11 +474,19 @@ def update_player_preferences(player_id: int, req: PlayerPreferencesUpdate, db: 
     if not player:
         raise HTTPException(status_code=404, detail="선수를 찾을 수 없습니다.")
 
-    # 본인 여부 확인: Player.name을 " / "로 쪼개서 뒤쪽 파트가 current_user.lol_id와 일치하는지 검증
+    # 본인 여부 확인: Player.name을 " / "로 쪼개서 뒤쪽 파트가 current_user.lol_id와 일치하는지 검증 (공백 제거, 대소문자 무시)
     name_parts = player.name.split(" / ")
-    player_lol_id = name_parts[1].strip() if len(name_parts) > 1 else None
+    player_lol_id = name_parts[1] if len(name_parts) > 1 else None
 
-    if not current_user.lol_id or not player_lol_id or player_lol_id != current_user.lol_id.strip():
+    def normalize_lol_id(val: Optional[str]) -> str:
+        if not val:
+            return ""
+        return "".join(val.split()).lower()
+
+    norm_player_lol_id = normalize_lol_id(player_lol_id)
+    norm_user_lol_id = normalize_lol_id(current_user.lol_id)
+
+    if not norm_user_lol_id or not norm_player_lol_id or norm_player_lol_id != norm_user_lol_id:
         raise HTTPException(status_code=403, detail="본인의 선수 정보만 수정할 수 있습니다.")
 
     # 불가(impossible) 포지션은 수정 불가능하게 유지

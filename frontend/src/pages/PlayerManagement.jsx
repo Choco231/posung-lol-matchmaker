@@ -240,8 +240,14 @@ export default function PlayerManagement({ token, userInfo }) {
 
             // 본인 카드 여부 판별 (이름 / 롤아이디 형식)
             const nameParts = p.name.split(" / ");
-            const playerLolId = nameParts[1] ? nameParts[1].trim() : null;
-            const isMe = userInfo && userInfo.lol_id && playerLolId === userInfo.lol_id.trim();
+            const playerLolId = nameParts[1] ? nameParts[1] : null;
+
+            const normalizeLolId = (val) => {
+              if (!val) return "";
+              return val.replace(/\s+/g, "").toLowerCase();
+            };
+
+            const isMe = userInfo && userInfo.lol_id && normalizeLolId(playerLolId) === normalizeLolId(userInfo.lol_id);
             const isEditing = editingPlayerId === p.id;
 
             if (isEditing) {
