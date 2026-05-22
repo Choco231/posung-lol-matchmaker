@@ -195,6 +195,10 @@ class UserUpdateAdmin(BaseModel):
     display_name: str = ""
     lol_id: str = ""
 
+class PlayerPreferencesUpdate(BaseModel):
+    preferred_positions: List[str]
+    non_preferred_positions: List[str]
+
 
 # --- Auth Endpoints ---
 @app.post("/api/auth/register")
@@ -463,6 +467,45 @@ def create_player(player: PlayerCreate, db: Session = Depends(get_db), current_u
     db.add(new_player)
     db.commit()
     return {"message": "Player created"}
+
+@app.put("/api/players/{player_id}/preferences")
+def update_player_preferences(player_id: int, req: PlayerPreferencesUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_approved_user)):
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        raise HTTPException(status_code=404, detail="선수를 찾을 수 없습니다.")
+
+    # 본인 여부 확인: Player.name을 " / "로 쪼개서 뒤쪽 파트가 current_user.lol_id와 일치하는지 검증
+    name_parts = player.name.split(" / ")
+    player_lol_id = name_parts[1].strip() if len(name_parts) > 1 else None
+
+    if not current_user.lol_id or not player_lol_id or player_lol_id != current_user.lol_id.strip():
+        raise HTTPException(status_code=403, detail="본인의 선수 정보만 수정할 수 있습니다.")
+
+    # 불가(impossible) 포지션은 수정 불가능하게 유지
+    existing_impossible = set(json.loads(player.impossible_positions or "[]"))
+    new_preferred = set(req.preferred_positions)
+    new_non_preferred = set(req.non_preferred_positions)
+
+    # 불가 포지션이 새로 설정하려는 선호/비선호에 겹쳐 들어오는지 확인
+    if existing_impossible.intersection(new_preferred) or existing_impossible.intersection(new_non_preferred):
+        raise HTTPException(status_code=400, detail="불가(impossible)로 설정된 포지션은 선호/비선호로 변경할 수 없습니다.")
+
+    # 불가 포지션을 제외한 모든 포지션이 정확히 preferred 혹은 non_preferred 중 하나여야 함
+    all_positions = {"top", "jungle", "mid", "adc", "support"}
+    allowed_positions = all_positions - existing_impossible
+
+    if (new_preferred | new_non_preferred) != allowed_positions:
+        raise HTTPException(status_code=400, detail="선호/비선호 포지션 설정이 올바르지 않습니다.")
+
+    # 선호 포지션은 최소 1개 있어야 함
+    if len(req.preferred_positions) == 0:
+        raise HTTPException(status_code=400, detail="최소 한 개의 포지션은 선호(🥰)로 설정해야 합니다.")
+
+    player.preferred_positions = json.dumps(req.preferred_positions)
+    player.non_preferred_positions = json.dumps(req.non_preferred_positions)
+    db.commit()
+
+    return {"message": "선호 포지션이 수정되었습니다."}
 
 
 # --- Match Endpoints ---
