@@ -82,38 +82,7 @@ def startup():
             ))
             db.commit()
 
-        # 20 test players — (name, top, jgl, mid, adc, sup, impossible[])
-        TEST_PLAYERS = [
-            ("test01", 60.0, 44.0, 50.0, 40.0, 36.0, []),
-            ("test02", 44.0, 64.0, 50.0, 42.0, 38.0, []),
-            ("test03", 42.0, 46.0, 66.0, 44.0, 40.0, []),
-            ("test04", 40.0, 42.0, 48.0, 68.0, 44.0, []),
-            ("test05", 38.0, 40.0, 44.0, 46.0, 70.0, []),
-            ("test06", 56.0, 40.0, 40.0, 56.0, 44.0, ["mid", "jungle"]),
-            ("test07", 40.0, 54.0, 40.0, 44.0, 54.0, ["top", "mid"]),
-            ("test08", 44.0, 44.0, 52.0, 40.0, 42.0, []),
-            ("test09", 48.0, 48.0, 48.0, 48.0, 48.0, []),
-            ("test10", 36.0, 36.0, 36.0, 36.0, 36.0, []),
-            ("test11", 64.0, 50.0, 44.0, 40.0, 40.0, ["adc", "support"]),
-            ("test12", 42.0, 66.0, 44.0, 42.0, 40.0, ["top"]),
-            ("test13", 40.0, 42.0, 62.0, 44.0, 42.0, []),
-            ("test14", 44.0, 40.0, 44.0, 64.0, 40.0, []),
-            ("test15", 40.0, 42.0, 44.0, 42.0, 60.0, []),
-            ("test16", 52.0, 52.0, 40.0, 40.0, 52.0, ["mid", "adc"]),
-            ("test17", 40.0, 40.0, 56.0, 56.0, 40.0, ["top", "support"]),
-            ("test18", 58.0, 42.0, 42.0, 58.0, 42.0, []),
-            ("test19", 46.0, 58.0, 46.0, 46.0, 46.0, []),
-            ("test20", 50.0, 50.0, 50.0, 50.0, 50.0, []),
-        ]
-        for name, top, jgl, mid, adc, sup, imp in TEST_PLAYERS:
-            if not db.query(Player).filter(Player.name == name).first():
-                db.add(Player(
-                    name=name,
-                    top_mu=top, jungle_mu=jgl, mid_mu=mid, adc_mu=adc, support_mu=sup,
-                    top_sigma=16.666, jungle_sigma=16.666, mid_sigma=16.666, adc_sigma=16.666, support_sigma=16.666,
-                    impossible_positions=json.dumps(imp),
-                ))
-        db.commit()
+
 
         # Database Migration: Auto Scale-down existing players from 1500 scale to 50 scale (100pt max Elo)
         players = db.query(Player).all()
