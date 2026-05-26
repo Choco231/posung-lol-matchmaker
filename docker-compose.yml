@@ -26,14 +26,14 @@ services:
     depends_on:
       - backend
 
-#  ngrok:
-#    image: ngrok/ngrok:latest
-#    container_name: loltc-ngrok
-#    environment:
-#      - NGROK_AUTHTOKEN=3DwSGT6Wl67gBQHy6zzmWvjp9RZ_2jJAXKwe3jjr5UBAKokBL
-#    command:
-#      - "http"
-#      - "frontend:5173"
-#      - "--url=mandate-move-stiffly.ngrok-free.dev"
-#    depends_on:
-#      - frontend
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: loltc-ngrok
+    environment:
+      - NGROK_AUTHTOKEN=3DwSGT6Wl67gBQHy6zzmWvjp9RZ_2jJAXKwe3jjr5UBAKokBL
+    command:
+      - "http"
+      - "frontend:5173"
+      - "--url=mandate-move-stiffly.ngrok-free.dev"
+    depends_on:
+      - frontend
