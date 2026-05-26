@@ -11,6 +11,7 @@ import Admin from './pages/Admin';
 import DBViewer from './pages/DBViewer';
 import Guide from './pages/Guide';
 import DataManagement from './pages/DataManagement';
+import MatchResults from './pages/MatchResults';
 
 // 모바일 접속 시 PC 전용 페이지 접근을 제어하는 가드 컴포넌트
 function PcOnlyGuard({ children }) {
@@ -166,6 +167,7 @@ function App() {
 
           {/* 데스크톱 메뉴 링크 */}
           {navLink('/', '👑 랭킹')}
+          {navLink('/results', '⚔️ 내전 결과')}
           {navLink('/guide', '📖 이용 가이드')}
 
           {token && (
@@ -197,11 +199,21 @@ function App() {
             <span className="bottom-nav-icon">📖</span>
             <span className="bottom-nav-label">가이드</span>
           </Link>
+          <Link to="/results" className={`bottom-nav-item ${location.pathname === '/results' ? 'active' : ''}`}>
+            <span className="bottom-nav-icon">⚔️</span>
+            <span className="bottom-nav-label">결과</span>
+          </Link>
           {token ? (
+            <>
+            <Link to="/virtual" className={`bottom-nav-item ${location.pathname === '/virtual' ? 'active' : ''}`}>
+              <span className="bottom-nav-icon">🧪</span>
+              <span className="bottom-nav-label">가상 입력</span>
+            </Link>
             <div className="bottom-nav-item" onClick={handleLogout} style={{ cursor: 'pointer' }}>
               <span className="bottom-nav-icon">🚪</span>
               <span className="bottom-nav-label">로그아웃</span>
             </div>
+            </>
           ) : (
             <Link to="/login" className={`bottom-nav-item ${location.pathname === '/login' ? 'active' : ''}`}>
               <span className="bottom-nav-icon">🔑</span>
@@ -215,6 +227,7 @@ function App() {
       <div className="main-content">
         <Routes>
           <Route path="/"           element={<Leaderboard />} />
+          <Route path="/results"    element={<MatchResults />} />
           <Route path="/guide"      element={<Guide />} />
           <Route path="/login"      element={<Login setToken={setToken} />} />
           
@@ -222,7 +235,7 @@ function App() {
           <Route path="/players"    element={<PcOnlyGuard><PlayerManagement token={token} userInfo={userInfo} /></PcOnlyGuard>} />
           <Route path="/teambuilder"element={<PcOnlyGuard><TeamBuilder token={token} /></PcOnlyGuard>} />
           <Route path="/record"     element={<PcOnlyGuard><RecordMatch token={token} /></PcOnlyGuard>} />
-          <Route path="/virtual"    element={<PcOnlyGuard><VirtualDataEntry token={token} userInfo={userInfo} /></PcOnlyGuard>} />
+          <Route path="/virtual"    element={<VirtualDataEntry token={token} userInfo={userInfo} />} />
           <Route path="/admin"      element={<PcOnlyGuard>{userInfo?.is_admin ? <Admin token={token} userInfo={userInfo} /> : <Leaderboard />}</PcOnlyGuard>} />
           <Route path="/datamanage" element={<PcOnlyGuard>{userInfo?.is_admin ? <DataManagement token={token} /> : <Leaderboard />}</PcOnlyGuard>} />
         </Routes>

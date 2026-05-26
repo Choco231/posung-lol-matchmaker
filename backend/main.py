@@ -5,17 +5,18 @@ from sqlalchemy import inspect as sa_inspect, text
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import List, Optional
 from pydantic import BaseModel
+from datetime import timedelta
 import json
 import trueskill
 import csv
 from io import BytesIO, StringIO
 
-from database import get_db, engine, SessionLocal, User, Player, Match
+from database import get_db, engine, SessionLocal, User, Player, Match, now_kst
 from auth import (
     get_password_hash, verify_password, create_access_token,
     get_current_user, get_approved_user, get_admin_user
 )
-from model import update_ratings, find_best_matchups
+from model import SETTLED_SIGMA, update_ratings, find_best_matchups
 
 app = FastAPI(title="LoL Tournament API")
 
@@ -39,6 +40,9 @@ def startup():
             conn.commit()
         if "non_preferred_positions" not in player_cols:
             conn.execute(text("ALTER TABLE players ADD COLUMN non_preferred_positions VARCHAR DEFAULT '[]'"))
+            conn.commit()
+        if "is_guest" not in player_cols:
+            conn.execute(text("ALTER TABLE players ADD COLUMN is_guest BOOLEAN DEFAULT 0"))
             conn.commit()
 
         # matches table migration
@@ -65,6 +69,25 @@ def startup():
             conn.commit()
         if "team_b_picks" not in match_cols:
             conn.execute(text("ALTER TABLE matches ADD COLUMN team_b_picks VARCHAR DEFAULT '[]'"))
+            conn.commit()
+
+        # Existing match timestamps were stored as naive UTC values. Convert them to naive KST once.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS app_metadata (
+                key VARCHAR PRIMARY KEY,
+                value VARCHAR NOT NULL
+            )
+        """))
+        timezone_migration = conn.execute(text("""
+            SELECT value FROM app_metadata WHERE key = 'matches_created_at_timezone'
+        """)).scalar()
+        if timezone_migration != "KST":
+            conn.execute(text("UPDATE matches SET created_at = datetime(created_at, '+9 hours')"))
+            conn.execute(text("""
+                INSERT INTO app_metadata (key, value)
+                VALUES ('matches_created_at_timezone', 'KST')
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """))
             conn.commit()
 
     # 2) Seed the master admin account + 20 test players
@@ -121,6 +144,8 @@ class UserCreate(BaseModel):
 
 class PlayerCreate(BaseModel):
     name: str
+    is_guest: bool = False
+    guest_mmrs: Optional[dict] = None
     impossible_positions: List[str] = []
     preferred_positions: List[str] = []
     non_preferred_positions: List[str] = []
@@ -133,6 +158,7 @@ class PlayerCreate(BaseModel):
 class PlayerResponse(BaseModel):
     id: int
     name: str
+    is_guest: bool = False
     top_mu: float
     jungle_mu: float
     mid_mu: float
@@ -167,6 +193,34 @@ class UserUpdateAdmin(BaseModel):
 class PlayerPreferencesUpdate(BaseModel):
     preferred_positions: List[str]
     non_preferred_positions: List[str]
+
+class GuestPlayerUpdate(BaseModel):
+    name: str
+    lol_id: str = ""
+    mmrs: dict
+    preferred_positions: List[str]
+    non_preferred_positions: List[str]
+    impossible_positions: List[str]
+
+ALL_POSITIONS = {"top", "jungle", "mid", "adc", "support"}
+
+def validate_position_preferences(preferred_positions, non_preferred_positions, impossible_positions):
+    preferred = set(preferred_positions)
+    non_preferred = set(non_preferred_positions)
+    impossible = set(impossible_positions)
+    if preferred & non_preferred or preferred & impossible or non_preferred & impossible:
+        raise HTTPException(status_code=400, detail="Position preference groups must not overlap")
+    if preferred | non_preferred | impossible != ALL_POSITIONS:
+        raise HTTPException(status_code=400, detail="Every position must be assigned a preference state")
+    if not preferred:
+        raise HTTPException(status_code=400, detail="At least one preferred position is required")
+
+def validate_guest_mmrs(mmrs):
+    if not isinstance(mmrs, dict) or set(mmrs.keys()) != ALL_POSITIONS:
+        raise HTTPException(status_code=400, detail="Guest MMR is required for every position")
+    for position, mmr in mmrs.items():
+        if not isinstance(mmr, (int, float)) or not 0 <= mmr <= 100:
+            raise HTTPException(status_code=400, detail=f"Guest {position} MMR must be between 0 and 100")
 
 
 # --- Auth Endpoints ---
@@ -312,7 +366,7 @@ def export_matches_csv(db: Session = Depends(get_db), current_user: User = Depen
     
     writer = csv.writer(output)
     writer.writerow([
-        "매치ID", "경기일시", "승리팀", "기록자",
+        "매치ID", "경기일시(KST)", "승리팀", "기록자",
         "블루_탑", "블루_정글", "블루_미드", "블루_원딜", "블루_서폿",
         "레드_탑", "레드_정글", "레드_미드", "레드_원딜", "레드_서폿"
     ])
@@ -363,7 +417,7 @@ def export_db(db: Session = Depends(get_db), current_user: User = Depends(get_ad
         ],
         "players": [
             {
-                "id": p.id, "name": p.name,
+                "id": p.id, "name": p.name, "is_guest": p.is_guest,
                 "top_mu": round(p.top_mu, 2), "top_sigma": round(p.top_sigma, 3),
                 "jungle_mu": round(p.jungle_mu, 2), "jungle_sigma": round(p.jungle_sigma, 3),
                 "mid_mu": round(p.mid_mu, 2), "mid_sigma": round(p.mid_sigma, 3),
@@ -410,32 +464,68 @@ def create_player(player: PlayerCreate, db: Session = Depends(get_db), current_u
     if db.query(Player).filter(Player.name == player.name).first():
         raise HTTPException(status_code=400, detail="Player already exists")
 
+    validate_position_preferences(player.preferred_positions, player.non_preferred_positions, player.impossible_positions)
+    if player.is_guest:
+        validate_guest_mmrs(player.guest_mmrs)
+
     new_player = Player(
         name=player.name,
+        is_guest=player.is_guest,
         impossible_positions=json.dumps(player.impossible_positions),
         preferred_positions=json.dumps(player.preferred_positions),
         non_preferred_positions=json.dumps(player.non_preferred_positions)
     )
 
-    if player.copy_top_id:
+    if player.is_guest:
+        for position in ALL_POSITIONS:
+            setattr(new_player, f"{position}_mu", player.guest_mmrs[position])
+            setattr(new_player, f"{position}_sigma", SETTLED_SIGMA)
+    elif player.copy_top_id:
         p = db.query(Player).filter(Player.id == player.copy_top_id).first()
         if p: new_player.top_mu = p.top_mu
-    if player.copy_jungle_id:
+    if not player.is_guest and player.copy_jungle_id:
         p = db.query(Player).filter(Player.id == player.copy_jungle_id).first()
         if p: new_player.jungle_mu = p.jungle_mu
-    if player.copy_mid_id:
+    if not player.is_guest and player.copy_mid_id:
         p = db.query(Player).filter(Player.id == player.copy_mid_id).first()
         if p: new_player.mid_mu = p.mid_mu
-    if player.copy_adc_id:
+    if not player.is_guest and player.copy_adc_id:
         p = db.query(Player).filter(Player.id == player.copy_adc_id).first()
         if p: new_player.adc_mu = p.adc_mu
-    if player.copy_support_id:
+    if not player.is_guest and player.copy_support_id:
         p = db.query(Player).filter(Player.id == player.copy_support_id).first()
         if p: new_player.support_mu = p.support_mu
 
     db.add(new_player)
     db.commit()
     return {"message": "Player created"}
+
+@app.put("/api/players/{player_id}/guest")
+def update_guest_player(player_id: int, req: GuestPlayerUpdate, db: Session = Depends(get_db)):
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+    if not player.is_guest:
+        raise HTTPException(status_code=403, detail="Only guest players can be publicly edited")
+    if not req.name.strip():
+        raise HTTPException(status_code=400, detail="Guest player name is required")
+    validate_position_preferences(req.preferred_positions, req.non_preferred_positions, req.impossible_positions)
+    validate_guest_mmrs(req.mmrs)
+    full_name = f"{req.name.strip()} / {req.lol_id.strip()}" if req.lol_id.strip() else req.name.strip()
+    duplicate = db.query(Player).filter(Player.name == full_name, Player.id != player.id).first()
+    if duplicate:
+        raise HTTPException(status_code=400, detail="Player already exists")
+
+    player.name = full_name
+    player.preferred_positions = json.dumps(req.preferred_positions)
+    player.non_preferred_positions = json.dumps(req.non_preferred_positions)
+    player.impossible_positions = json.dumps(req.impossible_positions)
+    for position in ALL_POSITIONS:
+        setattr(player, f"{position}_mu", req.mmrs[position])
+        setattr(player, f"{position}_sigma", SETTLED_SIGMA)
+
+    db.commit()
+    return {"message": "Guest player updated"}
 
 @app.put("/api/players/{player_id}/preferences")
 def update_player_preferences(player_id: int, req: PlayerPreferencesUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_approved_user)):
@@ -500,6 +590,75 @@ def matchmake(req: MatchmakeRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Could not find a valid matchup with given impossible positions")
 
     return {"matchups": matchups, "total": len(matchups)}
+
+@app.get("/api/matches/public-results")
+def get_public_real_match_results(page: int = 1, limit: int = 20, db: Session = Depends(get_db)):
+    page = max(page, 1)
+    limit = min(max(limit, 1), 50)
+    offset = (page - 1) * limit
+
+    query = db.query(Match).filter(Match.is_virtual == False)
+    total = query.count()
+    matches = query.order_by(Match.created_at.desc(), Match.id.desc()).offset(offset).limit(limit).all()
+    players = db.query(Player).all()
+    pid_to_name = {p.id: p.name for p in players}
+
+    return {
+        "matches": [
+            {
+                "id": match.id,
+                "created_at": match.created_at.strftime("%Y-%m-%d %H:%M") if match.created_at else None,
+                "winner": match.winner_team,
+                "team_a": {
+                    "top": pid_to_name.get(match.team_a_top_id, "?"),
+                    "jungle": pid_to_name.get(match.team_a_jungle_id, "?"),
+                    "mid": pid_to_name.get(match.team_a_mid_id, "?"),
+                    "adc": pid_to_name.get(match.team_a_adc_id, "?"),
+                    "support": pid_to_name.get(match.team_a_support_id, "?"),
+                },
+                "team_b": {
+                    "top": pid_to_name.get(match.team_b_top_id, "?"),
+                    "jungle": pid_to_name.get(match.team_b_jungle_id, "?"),
+                    "mid": pid_to_name.get(match.team_b_mid_id, "?"),
+                    "adc": pid_to_name.get(match.team_b_adc_id, "?"),
+                    "support": pid_to_name.get(match.team_b_support_id, "?"),
+                },
+            }
+            for match in matches
+        ],
+        "total": total,
+        "page": page,
+        "limit": limit,
+    }
+
+@app.get("/api/matches/recent-real-participants")
+def get_recent_real_match_participants(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    cutoff = now_kst() - timedelta(hours=2)
+    match = (
+        db.query(Match)
+        .filter(Match.is_virtual == False, Match.created_at >= cutoff)
+        .order_by(Match.created_at.desc(), Match.id.desc())
+        .first()
+    )
+
+    if not match:
+        return {"player_ids": [], "created_at": None}
+
+    return {
+        "player_ids": [
+            match.team_a_top_id,
+            match.team_a_jungle_id,
+            match.team_a_mid_id,
+            match.team_a_adc_id,
+            match.team_a_support_id,
+            match.team_b_top_id,
+            match.team_b_jungle_id,
+            match.team_b_mid_id,
+            match.team_b_adc_id,
+            match.team_b_support_id,
+        ],
+        "created_at": match.created_at.isoformat() if match.created_at else None,
+    }
 
 @app.post("/api/matches")
 def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current_user: User = Depends(get_approved_user)):

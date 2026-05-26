@@ -1,8 +1,12 @@
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 DATABASE_URL = "sqlite:///./loltc_data.db"
+KST = timezone(timedelta(hours=9))
+
+def now_kst():
+    return datetime.now(KST).replace(tzinfo=None)
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -22,6 +26,7 @@ class Player(Base):
     __tablename__ = "players"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
+    is_guest = Column(Boolean, default=False)
     # Positions MMR (mu and sigma)
     top_mu = Column(Float, default=50.0)
     top_sigma = Column(Float, default=16.666)
@@ -43,7 +48,7 @@ class Player(Base):
 class Match(Base):
     __tablename__ = "matches"
     id = Column(Integer, primary_key=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=now_kst)
     is_virtual = Column(Boolean, default=False)
     winner_team = Column(String) # "A" or "B"
     recorded_by_name = Column(String, nullable=True) # 입력한 사람 이름

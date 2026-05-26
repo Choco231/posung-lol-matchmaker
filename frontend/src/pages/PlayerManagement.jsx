@@ -8,11 +8,14 @@ const POSITIONS = [
   { id: 'adc', label: 'ADC' },
   { id: 'support', label: 'Support' }
 ];
+const DEFAULT_GUEST_MMRS = { top: '50', jungle: '50', mid: '50', adc: '50', support: '50' };
 
 export default function PlayerManagement({ token, userInfo }) {
   const [players, setPlayers] = useState([]);
   const [name, setName] = useState('');
   const [lolId, setLolId] = useState('');
+  const [isGuest, setIsGuest] = useState(false);
+  const [guestMmrs, setGuestMmrs] = useState(DEFAULT_GUEST_MMRS);
   
   // 포지션 선호도: preferred, non_preferred, impossible
   const [positionPreferences, setPositionPreferences] = useState({
@@ -26,6 +29,9 @@ export default function PlayerManagement({ token, userInfo }) {
   const [editPrefs, setEditPrefs] = useState({
     top: 'non_preferred', jungle: 'non_preferred', mid: 'non_preferred', adc: 'non_preferred', support: 'non_preferred'
   });
+  const [editName, setEditName] = useState('');
+  const [editLolId, setEditLolId] = useState('');
+  const [editMmrs, setEditMmrs] = useState(DEFAULT_GUEST_MMRS);
 
   useEffect(() => {
     fetchPlayers();
@@ -63,6 +69,8 @@ export default function PlayerManagement({ token, userInfo }) {
     try {
       await axios.post('/api/players', {
         name: fullName,
+        is_guest: isGuest,
+        guest_mmrs: isGuest ? Object.fromEntries(POSITIONS.map(pos => [pos.id, Number(guestMmrs[pos.id])])) : null,
         impossible_positions,
         preferred_positions,
         non_preferred_positions,
@@ -76,6 +84,8 @@ export default function PlayerManagement({ token, userInfo }) {
       });
       setName('');
       setLolId('');
+      setIsGuest(false);
+      setGuestMmrs(DEFAULT_GUEST_MMRS);
       setPositionPreferences({ top: 'non_preferred', jungle: 'non_preferred', mid: 'non_preferred', adc: 'non_preferred', support: 'non_preferred' });
       setCopyFromIds({ top: '', jungle: '', mid: '', adc: '', support: '' });
       fetchPlayers();
@@ -105,6 +115,10 @@ export default function PlayerManagement({ token, userInfo }) {
       }
     });
     setEditPrefs(initialPrefs);
+    const nameParts = player.name.split(' / ');
+    setEditName(nameParts[0] || '');
+    setEditLolId(nameParts.slice(1).join(' / '));
+    setEditMmrs(Object.fromEntries(POSITIONS.map(pos => [pos.id, player[`${pos.id}_mu`].toFixed(1)])));
   };
 
   const cancelEditing = () => {
@@ -112,8 +126,10 @@ export default function PlayerManagement({ token, userInfo }) {
   };
 
   const handleSaveEdit = async (playerId) => {
+    const player = players.find(p => p.id === playerId);
     const preferred_positions = POSITIONS.filter(p => editPrefs[p.id] === 'preferred').map(p => p.id);
     const non_preferred_positions = POSITIONS.filter(p => editPrefs[p.id] === 'non_preferred').map(p => p.id);
+    const impossible_positions = POSITIONS.filter(p => editPrefs[p.id] === 'impossible').map(p => p.id);
 
     if (preferred_positions.length === 0) {
       alert('최소 한 개의 포지션은 반드시 🥰 선호로 설정해 주셔야 합니다.');
@@ -121,12 +137,23 @@ export default function PlayerManagement({ token, userInfo }) {
     }
 
     try {
-      await axios.put(`/api/players/${playerId}/preferences`, {
-        preferred_positions,
-        non_preferred_positions
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      if (player?.is_guest) {
+        await axios.put(`/api/players/${playerId}/guest`, {
+          name: editName,
+          lol_id: editLolId,
+          mmrs: Object.fromEntries(POSITIONS.map(pos => [pos.id, Number(editMmrs[pos.id])])),
+          preferred_positions,
+          non_preferred_positions,
+          impossible_positions,
+        });
+      } else {
+        await axios.put(`/api/players/${playerId}/preferences`, {
+          preferred_positions,
+          non_preferred_positions
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
       setEditingPlayerId(null);
       fetchPlayers();
       alert('선호 포지션이 성공적으로 변경되었습니다.');
@@ -150,6 +177,30 @@ export default function PlayerManagement({ token, userInfo }) {
               <input value={lolId} onChange={e => setLolId(e.target.value)} placeholder="예: 초코타코#kr1" />
             </div>
           </div>
+
+          <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '1rem', color: 'var(--text-secondary)' }}>
+            <input
+              type="checkbox"
+              checked={isGuest}
+              onChange={e => setIsGuest(e.target.checked)}
+              style={{ width: 'auto', marginBottom: 0 }}
+            />
+            손님 선수 (누구나 정보 수정 가능)
+          </label>
+
+          {isGuest && (
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem' }}>초기 포지션별 MMR (수렴 상태로 시작)</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.5rem' }}>
+                {POSITIONS.map(pos => (
+                  <div key={pos.id}>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>{pos.label}</label>
+                    <input type="number" min="0" max="100" step="0.1" value={guestMmrs[pos.id]} onChange={e => setGuestMmrs(prev => ({ ...prev, [pos.id]: e.target.value }))} required />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{marginBottom: '1rem'}}>
             <label style={{display: 'block', marginBottom: '0.5rem'}}>포지션 선호도 (각 포지션별 1개 선택)</label>
@@ -190,7 +241,7 @@ export default function PlayerManagement({ token, userInfo }) {
             </div>
           </div>
 
-          <div style={{marginBottom: '1.5rem'}}>
+          {!isGuest && <div style={{marginBottom: '1.5rem'}}>
             <label style={{display: 'block', marginBottom: '0.5rem'}}>초기 점수 복사 (각 포지션별 비슷한 실력자 선택)</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
               {POSITIONS.map(pos => {
@@ -224,7 +275,7 @@ export default function PlayerManagement({ token, userInfo }) {
                 );
               })}
             </div>
-          </div>
+          </div>}
 
           <button type="submit" className="btn" style={{width: '100%'}}>선수 등록</button>
         </form>
@@ -254,6 +305,22 @@ export default function PlayerManagement({ token, userInfo }) {
               return (
                 <div key={p.id} style={{padding: '1rem', borderBottom: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.01)'}}>
                   <div style={{fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '0.5rem'}}>{p.name} (편집 중)</div>
+                  {p.is_guest && (
+                    <div style={{ marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="손님 이름" />
+                        <input value={editLolId} onChange={e => setEditLolId(e.target.value)} placeholder="롤 아이디" />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.5rem' }}>
+                        {POSITIONS.map(pos => (
+                          <div key={pos.id}>
+                            <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>{pos.label}</label>
+                            <input type="number" min="0" max="100" step="0.1" value={editMmrs[pos.id]} onChange={e => setEditMmrs(prev => ({ ...prev, [pos.id]: e.target.value }))} required />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div style={{display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem', background: 'rgba(0,0,0,0.15)', padding: '0.75rem', borderRadius: '8px'}}>
                     {POSITIONS.map(pos => {
                       const isImpossible = editPrefs[pos.id] === 'impossible';
@@ -263,12 +330,13 @@ export default function PlayerManagement({ token, userInfo }) {
                             {pos.label}
                           </span>
                           <div style={{ display: 'flex', gap: '0.3rem' }}>
-                            {isImpossible ? (
+                            {!p.is_guest && isImpossible ? (
                               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>❌ 불가 (수정 불가)</span>
                             ) : (
                               [
                                 { val: 'preferred', label: '🥰 선호', bg: 'rgba(76,175,80,0.2)', border: '#4caf50', activeColor: '#4caf50' },
-                                { val: 'non_preferred', label: '😟 비선호', bg: 'rgba(255,152,0,0.2)', border: '#ff9800', activeColor: '#ff9800' }
+                                { val: 'non_preferred', label: '😟 비선호', bg: 'rgba(255,152,0,0.2)', border: '#ff9800', activeColor: '#ff9800' },
+                                ...(p.is_guest ? [{ val: 'impossible', label: '❌ 불가', bg: 'rgba(244,67,54,0.2)', border: '#f44336', activeColor: '#f44336' }] : [])
                               ].map(opt => {
                                 const isActive = editPrefs[pos.id] === opt.val;
                                 return (
@@ -321,18 +389,23 @@ export default function PlayerManagement({ token, userInfo }) {
               <div key={p.id} style={{padding: '1rem', borderBottom: '1px solid var(--border-color)'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem'}}>
                   <div style={{fontWeight: 'bold', fontSize: '1.1rem'}}>{p.name}</div>
-                  {isMe && (
+                  {(isMe || p.is_guest) && (
                     <button 
                       type="button" 
                       className="btn" 
                       onClick={() => startEditing(p)}
                       style={{padding: '0.25rem 0.6rem', fontSize: '0.75rem', background: 'var(--accent-color)'}}
                     >
-                      ⚙️ 내 선호도 수정
+                      {p.is_guest ? '🧳 손님 정보 수정' : '⚙️ 내 선호도 수정'}
                     </button>
                   )}
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {p.is_guest && (
+                    <span style={{fontSize: '0.8rem', color: '#38bdf8', background: 'rgba(56,189,248,0.15)', padding: '0.1rem 0.4rem', borderRadius: '4px'}}>
+                      손님 · 공개 수정 가능
+                    </span>
+                  )}
                   {pref.length > 0 && (
                     <span style={{fontSize: '0.8rem', color: '#4caf50', background: 'rgba(76,175,80,0.15)', padding: '0.1rem 0.4rem', borderRadius: '4px'}}>
                       🥰 선호: {pref.join(', ')}

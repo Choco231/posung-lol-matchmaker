@@ -81,6 +81,13 @@ export default function VirtualDataEntry({ token, userInfo }) {
   const [teamA, setTeamA] = useState({ top: '', jungle: '', mid: '', adc: '', support: '' });
   const [teamB, setTeamB] = useState({ top: '', jungle: '', mid: '', adc: '', support: '' });
   const [activeSlot, setActiveSlot] = useState(null); // e.g., { team: 'A', pos: 'top' }
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const getTeamAvgMmr = (assign) => {
     let sum = 0;
@@ -117,6 +124,10 @@ export default function VirtualDataEntry({ token, userInfo }) {
       };
 
       const filtered = res.data.filter(p => {
+        if (p.is_guest) {
+          return false;
+        }
+
         const myLolId = cleanLolId(userInfo?.lol_id);
         const pLolId = cleanLolId(getLolIdFromPlayerName(p.name));
 
@@ -166,7 +177,7 @@ export default function VirtualDataEntry({ token, userInfo }) {
       return;
     }
 
-    const MAX_MMR_DIFF = 3.0; // 허용되는 최대 양 팀 평균 MMR 격차 (3점)
+    const MAX_MMR_DIFF = 1.0; // 허용되는 최대 양 팀 평균 MMR 격차 (1점)
 
     for (let attempt = 0; attempt < 2000; attempt++) {
       const picked = shuffle(players).slice(0, 10);
@@ -182,7 +193,7 @@ export default function VirtualDataEntry({ token, userInfo }) {
         const avgB = getTeamAvgMmr(assignB);
         const diff = Math.abs(avgA - avgB);
 
-        // 양 팀 평균 MMR 격차가 3점 이하인 경우에만 매칭 확정
+        // 양 팀 평균 MMR 격차가 1점 이하인 경우에만 매칭 확정
         if (diff <= MAX_MMR_DIFF) {
           setTeamA(assignA);
           setTeamB(assignB);
@@ -191,7 +202,7 @@ export default function VirtualDataEntry({ token, userInfo }) {
         }
       }
     }
-    alert(`양 팀 평균 MMR 격차 3점 이내의 가상 배치를 찾지 못했습니다. (선수들의 불가능 포지션 제한이 너무 많을 때 발생 가능)`);
+    alert(`양 팀 평균 MMR 격차 1점 이내의 가상 배치를 찾지 못했습니다. (선수들의 불가능 포지션 제한이 너무 많을 때 발생 가능)`);
   };
 
   const handleSlotClick = (team, pos) => {
@@ -245,20 +256,32 @@ export default function VirtualDataEntry({ token, userInfo }) {
 
   const getPlayerById = (id) => players.find(p => String(p.id) === String(id));
 
+  const getPlayerLabel = (player) => {
+    if (!player) return { displayName: '', lolId: '' };
+    const slashIndex = player.name.indexOf('/');
+    if (slashIndex < 0) return { displayName: player.name.trim(), lolId: '' };
+    return {
+      displayName: player.name.slice(0, slashIndex).trim(),
+      lolId: player.name.slice(slashIndex + 1).trim(),
+    };
+  };
+
   // --- Styles ---
   const slotStyle = (team, pos) => {
-    const isActive = activeSlot?.team === team && activeSlot?.pos === pos;
+    const isActive = !isMobile && activeSlot?.team === team && activeSlot?.pos === pos;
     const isAssigned = (team === 'A' ? teamA[pos] : teamB[pos]) !== '';
     return {
-      padding: '0.8rem',
+      padding: isMobile ? '0.28rem 0.35rem' : '0.8rem',
       borderRadius: '8px',
       border: isActive ? `2px solid ${team === 'A' ? '#3b82f6' : '#ef4444'}` : '1px solid var(--border-color)',
       background: isActive ? (team === 'A' ? 'rgba(59,130,246,0.1)' : 'rgba(239,68,68,0.1)') : 'var(--panel-bg)',
-      cursor: 'pointer',
-      marginBottom: '0.5rem',
+      cursor: isMobile ? 'default' : 'pointer',
+      marginBottom: isMobile ? '0.22rem' : '0.5rem',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
+      minHeight: isMobile ? '39px' : undefined,
+      minWidth: 0,
       boxShadow: isActive ? '0 0 0 3px rgba(255,255,255,0.05)' : 'none',
       transition: 'all 0.15s',
     };
@@ -297,69 +320,85 @@ export default function VirtualDataEntry({ token, userInfo }) {
   };
 
   return (
-    <div className="card" style={{ padding: '2rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-        <h2 style={{ margin: 0 }}>🧪 가상 데이터 입력 모드</h2>
-        <button className="btn" onClick={handleRandomize} style={{ background: 'rgba(94,106,210,0.3)', border: '1px solid var(--accent)' }}>
+    <div className="card" style={{ padding: isMobile ? '0.6rem' : '2rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: isMobile ? '0.35rem' : '1rem', marginBottom: '0.5rem' }}>
+        <h2 style={{ margin: 0, fontSize: isMobile ? '0.92rem' : undefined }}>🧪 가상 데이터 입력 모드</h2>
+        <button className="btn" onClick={handleRandomize} style={{ background: 'rgba(94,106,210,0.3)', border: '1px solid var(--accent)', padding: isMobile ? '0.38rem 0.48rem' : undefined, fontSize: isMobile ? '0.7rem' : undefined, whiteSpace: 'nowrap' }}>
           🎲 랜덤 배치
         </button>
       </div>
-      <p style={{ marginBottom: '2rem', color: 'var(--text-secondary)' }}>
+      <p style={{ display: isMobile ? 'none' : undefined, marginBottom: '2rem', color: 'var(--text-secondary)' }}>
         슬롯을 클릭한 뒤, 아래의 선수 목록에서 선수를 골라 배정하세요. (본인은 제외됨)
       </p>
 
       {/* 배정 슬롯 영역 */}
-      <div style={{ display: 'flex', gap: '2rem', marginBottom: '2.5rem' }}>
-        <div style={{ flex: 1 }}>
-          <h3 style={{ color: '#3b82f6', marginBottom: '0.2rem', textAlign: 'center' }}>🔵 Blue Team</h3>
-          <div style={{ textAlign: 'center', marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+      <div style={{ display: 'flex', gap: isMobile ? '0.4rem' : '2rem', marginBottom: isMobile ? '0.75rem' : '2.5rem' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3 style={{ color: '#3b82f6', marginBottom: '0.2rem', textAlign: 'center', fontSize: isMobile ? '0.78rem' : undefined, whiteSpace: 'nowrap' }}>🔵 Blue Team</h3>
+          <div style={{ textAlign: 'center', marginBottom: isMobile ? '0.35rem' : '1rem', fontSize: isMobile ? '0.64rem' : '0.9rem', color: 'var(--text-secondary)' }}>
             평균 MMR: {getTeamAvgMmr(teamA).toFixed(1)}
           </div>
           {POSITIONS.map(pos => {
             const pId = teamA[pos];
             const p = getPlayerById(pId);
+            const playerLabel = getPlayerLabel(p);
             return (
-              <div key={`A_${pos}`} style={slotStyle('A', pos)} onClick={() => handleSlotClick('A', pos)}>
-                <span style={{ width: '4rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{POS_LABELS[pos]}</span>
-                <span style={{ fontWeight: p ? 700 : 400, color: p ? '#3b82f6' : 'var(--text-secondary)' }}>
-                  {p ? `${p.name} (${p[`${pos}_mu`].toFixed(1)})` : '선택...'}
-                </span>
+              <div key={`A_${pos}`} style={slotStyle('A', pos)} onClick={isMobile ? undefined : () => handleSlotClick('A', pos)}>
+                <span style={{ width: isMobile ? '1.8rem' : '4rem', flexShrink: 0, color: 'var(--text-secondary)', fontSize: isMobile ? '0.61rem' : '0.85rem' }}>{POS_LABELS[pos]}</span>
+                {isMobile && p ? (
+                  <span style={{ minWidth: 0, flex: 1, textAlign: 'right', lineHeight: 1.15 }}>
+                    <span style={{ display: 'block', fontWeight: 700, color: '#3b82f6', fontSize: '0.66rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{playerLabel.lolId || playerLabel.displayName}</span>
+                    <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.57rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{playerLabel.lolId ? `${playerLabel.displayName} · ` : ''}MMR {p[`${pos}_mu`].toFixed(1)}</span>
+                  </span>
+                ) : (
+                  <span style={{ fontWeight: p ? 700 : 400, color: p ? '#3b82f6' : 'var(--text-secondary)', fontSize: isMobile ? '0.62rem' : undefined, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p ? `${p.name} (${p[`${pos}_mu`].toFixed(1)})` : '선택...'}
+                  </span>
+                )}
               </div>
             );
           })}
-          <button className="btn" style={{ width: '100%', background: '#3b82f6', marginTop: '1rem' }} onClick={() => handleSubmit('A')}>
+          <button className="btn" style={{ width: '100%', background: '#3b82f6', marginTop: isMobile ? '0.35rem' : '1rem', padding: isMobile ? '0.4rem 0.12rem' : undefined, fontSize: isMobile ? '0.68rem' : undefined, whiteSpace: 'nowrap' }} onClick={() => handleSubmit('A')}>
             🔵 A팀 승리 기록
           </button>
         </div>
 
-        <div style={{ flex: 1 }}>
-          <h3 style={{ color: '#ef4444', marginBottom: '0.2rem', textAlign: 'center' }}>🔴 Red Team</h3>
-          <div style={{ textAlign: 'center', marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3 style={{ color: '#ef4444', marginBottom: '0.2rem', textAlign: 'center', fontSize: isMobile ? '0.78rem' : undefined, whiteSpace: 'nowrap' }}>🔴 Red Team</h3>
+          <div style={{ textAlign: 'center', marginBottom: isMobile ? '0.35rem' : '1rem', fontSize: isMobile ? '0.64rem' : '0.9rem', color: 'var(--text-secondary)' }}>
             평균 MMR: {getTeamAvgMmr(teamB).toFixed(1)}
           </div>
           {POSITIONS.map(pos => {
             const pId = teamB[pos];
             const p = getPlayerById(pId);
+            const playerLabel = getPlayerLabel(p);
             return (
-              <div key={`B_${pos}`} style={slotStyle('B', pos)} onClick={() => handleSlotClick('B', pos)}>
-                <span style={{ width: '4rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{POS_LABELS[pos]}</span>
-                <span style={{ fontWeight: p ? 700 : 400, color: p ? '#ef4444' : 'var(--text-secondary)' }}>
-                  {p ? `${p.name} (${p[`${pos}_mu`].toFixed(1)})` : '선택...'}
-                </span>
+              <div key={`B_${pos}`} style={slotStyle('B', pos)} onClick={isMobile ? undefined : () => handleSlotClick('B', pos)}>
+                <span style={{ width: isMobile ? '1.8rem' : '4rem', flexShrink: 0, color: 'var(--text-secondary)', fontSize: isMobile ? '0.61rem' : '0.85rem' }}>{POS_LABELS[pos]}</span>
+                {isMobile && p ? (
+                  <span style={{ minWidth: 0, flex: 1, textAlign: 'right', lineHeight: 1.15 }}>
+                    <span style={{ display: 'block', fontWeight: 700, color: '#ef4444', fontSize: '0.66rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{playerLabel.lolId || playerLabel.displayName}</span>
+                    <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.57rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{playerLabel.lolId ? `${playerLabel.displayName} · ` : ''}MMR {p[`${pos}_mu`].toFixed(1)}</span>
+                  </span>
+                ) : (
+                  <span style={{ fontWeight: p ? 700 : 400, color: p ? '#ef4444' : 'var(--text-secondary)', fontSize: isMobile ? '0.62rem' : undefined, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p ? `${p.name} (${p[`${pos}_mu`].toFixed(1)})` : '선택...'}
+                  </span>
+                )}
               </div>
             );
           })}
-          <button className="btn" style={{ width: '100%', background: '#ef4444', marginTop: '1rem' }} onClick={() => handleSubmit('B')}>
+          <button className="btn" style={{ width: '100%', background: '#ef4444', marginTop: isMobile ? '0.35rem' : '1rem', padding: isMobile ? '0.4rem 0.12rem' : undefined, fontSize: isMobile ? '0.68rem' : undefined, whiteSpace: 'nowrap' }} onClick={() => handleSubmit('B')}>
             🔴 B팀 승리 기록
           </button>
         </div>
       </div>
 
       {/* 선수 선택 영역 */}
-      <div style={{
-        padding: '1.5rem', borderRadius: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)'
+      {!isMobile && <div style={{
+        padding: isMobile ? '0.7rem' : '1.5rem', borderRadius: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)'
       }}>
-        <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-secondary)' }}>
+        <h4 style={{ margin: isMobile ? '0 0 0.6rem 0' : '0 0 1rem 0', color: 'var(--text-secondary)', fontSize: isMobile ? '0.78rem' : undefined }}>
           {activeSlot ? `👇 [${activeSlot.team === 'A' ? 'Blue' : 'Red'} ${POS_LABELS[activeSlot.pos]}] 배치할 선수 선택` : '클릭해서 선택할 슬롯을 먼저 지정하세요'}
         </h4>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
@@ -378,7 +417,7 @@ export default function VirtualDataEntry({ token, userInfo }) {
           ))}
           {players.length === 0 && <span style={{ color: 'var(--text-secondary)' }}>배정할 수 있는 선수가 없습니다.</span>}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

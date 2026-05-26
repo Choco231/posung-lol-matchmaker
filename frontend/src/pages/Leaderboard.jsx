@@ -46,7 +46,7 @@ export default function Leaderboard() {
 
   useEffect(() => {
     axios.get('/api/players')
-      .then(res  => { setPlayers(res.data); setLoading(false); })
+      .then(res  => { setPlayers(res.data.filter(player => !player.is_guest)); setLoading(false); })
       .catch(err => { console.error(err);   setLoading(false); });
   }, []);
 

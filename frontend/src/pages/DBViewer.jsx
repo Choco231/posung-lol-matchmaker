@@ -165,7 +165,7 @@ export default function DBViewer({ token, isAdmin }) {
             <table>
               <thead>
                 <tr>
-                  <th onClick={() => handleMatchSort('time')} style={sortHeaderStyle}>기록 시간{sortIndicator('time')}</th>
+                  <th onClick={() => handleMatchSort('time')} style={sortHeaderStyle}>기록 시간 (KST){sortIndicator('time')}</th>
                   <th onClick={() => handleMatchSort('recorder')} style={sortHeaderStyle}>입력한 사람{sortIndicator('recorder')}</th>
                   <th onClick={() => handleMatchSort('type')} style={sortHeaderStyle}>종류{sortIndicator('type')}</th>
                   <th style={{color:'#3b82f6'}}>블루 탑</th>

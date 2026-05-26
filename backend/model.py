@@ -2,9 +2,11 @@ import trueskill
 import itertools
 import json
 
-# Setup default TrueSkill environment (50.0 scale)
-env = trueskill.TrueSkill(mu=50.0, sigma=16.666, beta=8.333, tau=0.166, draw_probability=0.0)
+# Setup default TrueSkill environment (50.0 scale).
+# tau=1.55 keeps settled, evenly matched games near a +/-1.5 displayed MMR change.
+env = trueskill.TrueSkill(mu=50.0, sigma=16.666, beta=8.333, tau=1.55, draw_probability=0.0)
 env.make_as_global()
+SETTLED_SIGMA = 8.25
 
 def update_ratings(team_a_ratings, team_b_ratings, team_a_won: bool):
     """

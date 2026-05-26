@@ -20,6 +20,7 @@ backend/delete_all_players.py
 node_modules/
 dist/
 .eslintcache
+frontend/coupon/
 
 # OS
 .DS_Store

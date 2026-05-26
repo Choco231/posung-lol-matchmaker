@@ -113,7 +113,7 @@ export default function DataManagement({ token }) {
   };
 
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '1rem' }}>
+    <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '1rem' }}>
       <div style={{ marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '1.8rem', margin: '0 0 0.5rem 0' }}>🛠️ 관리자: 통합 데이터 관리</h2>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
@@ -275,15 +275,15 @@ export default function DataManagement({ token }) {
           ) : (
             <>
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ minWidth: '950px' }}>
+                <table style={{ minWidth: '1220px' }}>
                   <thead>
                     <tr>
-                      <th>경기 일시</th>
-                      <th>구분</th>
-                      <th>승리</th>
+                      <th style={{ minWidth: '150px', whiteSpace: 'nowrap' }}>경기 일시 (KST)</th>
+                      <th style={{ minWidth: '82px', whiteSpace: 'nowrap' }}>구분</th>
+                      <th style={{ minWidth: '72px', whiteSpace: 'nowrap' }}>승리</th>
                       <th>🔵 Blue Team</th>
                       <th>🔴 Red Team</th>
-                      <th>기록자 (ID)</th>
+                      <th style={{ minWidth: '135px', whiteSpace: 'nowrap' }}>기록자 (ID)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -296,15 +296,15 @@ export default function DataManagement({ token }) {
                     ) : (
                       matches.map(m => (
                         <tr key={m.id}>
-                          <td style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{m.created_at || '—'}</td>
-                          <td>
+                          <td style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{m.created_at || '—'}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
                             {m.is_virtual ? (
                               <span style={{ fontSize: '0.72rem', background: 'rgba(245,158,11,0.15)', color: '#fbbf24', padding: '0.2rem 0.5rem', borderRadius: '6px', fontWeight: 600 }}>🧪 가상</span>
                             ) : (
                               <span style={{ fontSize: '0.72rem', background: 'rgba(59,130,246,0.15)', color: '#60a5fa', padding: '0.2rem 0.5rem', borderRadius: '6px', fontWeight: 600 }}>⚔️ 실전</span>
                             )}
                           </td>
-                          <td style={{ fontWeight: 700, color: m.winner === 'A' ? 'var(--win-color)' : 'var(--loss-color)' }}>
+                          <td style={{ fontWeight: 700, color: m.winner === 'A' ? 'var(--win-color)' : 'var(--loss-color)', whiteSpace: 'nowrap' }}>
                             {m.winner === 'A' ? 'BLUE' : 'RED'}
                           </td>
                           <td>
@@ -325,7 +325,7 @@ export default function DataManagement({ token }) {
                               <div>서폿: {m.team_b.support}</div>
                             </div>
                           </td>
-                          <td style={{ fontSize: '0.82rem', fontWeight: 600 }}>{m.recorded_by}</td>
+                          <td style={{ fontSize: '0.82rem', fontWeight: 600, whiteSpace: 'nowrap' }}>{m.recorded_by}</td>
                         </tr>
                       ))
                     )}

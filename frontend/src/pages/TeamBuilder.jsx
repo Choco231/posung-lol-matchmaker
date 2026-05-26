@@ -17,14 +17,57 @@ export default function TeamBuilder({ token }) {
   const [total, setTotal]             = useState(0);
   const [page, setPage]               = useState(0);   // 0-indexed
   const [loading, setLoading]         = useState(false);
-  const [sortBy, setSortBy]           = useState('balance'); // 'balance' | 'preference'
+  const [sortBy, setSortBy]           = useState('preference'); // 'balance' | 'preference'
+  const [recentSelectionLoaded, setRecentSelectionLoaded] = useState(false);
 
   useEffect(() => {
-    axios.get('/api/players').then(res => setPlayers(res.data));
-  }, []);
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+    Promise.all([
+      axios.get('/api/players'),
+      axios.get('/api/matches/recent-real-participants', { headers })
+    ]).then(([playersRes, recentMatchRes]) => {
+      const fetchedPlayers = playersRes.data;
+      const validPlayerIds = new Set(fetchedPlayers.map(player => player.id));
+      const recentIds = [...new Set(recentMatchRes.data.player_ids || [])]
+        .filter(playerId => validPlayerIds.has(playerId))
+        .slice(0, 10);
+
+      setPlayers(fetchedPlayers);
+      if (recentIds.length === 10) {
+        setSelectedIds(recentIds);
+        setRecentSelectionLoaded(true);
+      }
+    }).catch(err => {
+      console.error('팀 짜기 초기 데이터 조회 실패:', err);
+    });
+  }, [token]);
+
+  const getPositionPreference = (player, position) => {
+    if (!position) return 'neutral';
+
+    try {
+      const preferred = JSON.parse(player.preferred_positions || '[]');
+      const impossible = JSON.parse(player.impossible_positions || '[]');
+
+      if (impossible.includes(position)) return 'impossible';
+      if (preferred.includes(position)) return 'preferred';
+    } catch {}
+
+    return 'non_preferred';
+  };
 
   const handlePlayerClick = (pId) => {
+    setRecentSelectionLoaded(false);
+
     if (activeSlot) {
+      const player = players.find(p => p.id === pId);
+      if (!player || getPositionPreference(player, activeSlot.pos) === 'impossible') return;
+      if (!selectedIds.includes(pId) && selectedIds.length >= 10) {
+        alert('이미 10명이 선택되었습니다. 다른 선수를 빼고 고정하세요.');
+        return;
+      }
+
       const pinKey = `${activeSlot.team}_${activeSlot.pos}`;
       const newPins = { ...pinnedPositions };
       
@@ -39,12 +82,7 @@ export default function TeamBuilder({ token }) {
       
       // 10명 선택 목록에 없다면 자동 추가
       if (!selectedIds.includes(pId)) {
-        if (selectedIds.length < 10) {
-          setSelectedIds([...selectedIds, pId]);
-        } else {
-          alert('이미 10명이 선택되었습니다. 다른 선수를 빼고 고정하세요.');
-          return;
-        }
+        setSelectedIds([...selectedIds, pId]);
       }
       
       // 자동 다음 슬롯 (선택적)
@@ -81,6 +119,16 @@ export default function TeamBuilder({ token }) {
     }
   };
 
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+    setPinnedPositions({});
+    setActiveSlot(null);
+    setMatchups([]);
+    setTotal(0);
+    setPage(0);
+    setRecentSelectionLoaded(false);
+  };
+
   const handleMatchmake = async () => {
     if (selectedIds.length !== 10) {
       alert('10명을 선택해주세요.');
@@ -89,6 +137,7 @@ export default function TeamBuilder({ token }) {
     setLoading(true);
     setMatchups([]);
     setPage(0);
+    setSortBy('preference');
     try {
       const res = await axios.post('/api/matchmake', { player_ids: selectedIds, pinned_positions: pinnedPositions }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -169,6 +218,12 @@ export default function TeamBuilder({ token }) {
 
   const totalPages    = Math.ceil(sortedMatchups.length / PAGE_SIZE);
   const paginated     = sortedMatchups.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const selectablePlayers = activeSlot
+    ? [...players].sort((a, b) => {
+        const priority = { preferred: 0, non_preferred: 1, impossible: 2 };
+        return priority[getPositionPreference(a, activeSlot.pos)] - priority[getPositionPreference(b, activeSlot.pos)];
+      })
+    : players;
 
   const getPreferenceLabel = (player, pos) => {
     if (!player) return null;
@@ -376,31 +431,62 @@ export default function TeamBuilder({ token }) {
     <div style={{ display: 'flex', gap: '2rem' }}>
 
       {/* ── Left: Player selector (sticky) ── */}
-      <div className="card" style={{ width: '240px', flexShrink: 0, alignSelf: 'flex-start', position: 'sticky', top: '2rem' }}>
-        <h2 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>
-          참가자 선택 ({selectedIds.length}/10)
-        </h2>
+      <div className="card" style={{ width: '480px', flexShrink: 0, alignSelf: 'flex-start', position: 'sticky', top: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <h2 style={{ fontSize: '1rem', margin: 0 }}>
+            참가자 선택 ({selectedIds.length}/10)
+          </h2>
+          <button
+            type="button"
+            onClick={handleClearSelection}
+            disabled={selectedIds.length === 0 && Object.keys(pinnedPositions).length === 0}
+            style={{
+              padding: '0.3rem 0.6rem',
+              borderRadius: '6px',
+              border: '1px solid var(--border-color)',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+              cursor: selectedIds.length === 0 && Object.keys(pinnedPositions).length === 0 ? 'not-allowed' : 'pointer',
+              fontSize: '0.75rem',
+              opacity: selectedIds.length === 0 && Object.keys(pinnedPositions).length === 0 ? 0.45 : 1,
+            }}
+          >
+            전체 선택 취소
+          </button>
+        </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginBottom: '1rem' }}>
-          클릭하여 10명 선택 후 버튼을 누르세요.
+          {activeSlot
+            ? `${activeSlot.team === 'A' ? 'Blue' : 'Red'} ${activeSlot.pos.toUpperCase()}에 고정할 선수를 선택하세요.`
+            : recentSelectionLoaded
+              ? '최근 2시간 내 최신 실전 매치 참가자 10명이 선택되어 있습니다.'
+              : '클릭하여 10명 선택 후 버튼을 누르세요.'}
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '1.2rem', maxHeight: '55vh', overflowY: 'auto' }}>
-          {players.map(p => {
+          {selectablePlayers.map(p => {
             const selected = selectedIds.includes(p.id);
+            const preference = getPositionPreference(p, activeSlot?.pos);
+            const unavailable = preference === 'impossible';
             return (
               <button
                 key={p.id}
                 onClick={() => handlePlayerClick(p.id)}
+                disabled={activeSlot && unavailable}
                 style={{
                   padding: '0.5rem 0.75rem',
-                  background: selected ? 'var(--accent)' : 'rgba(255,255,255,0.04)',
-                  color: 'white',
-                  border: selected ? '1px solid var(--accent)' : '1px solid var(--border-color)',
+                  background: unavailable
+                    ? 'rgba(255,255,255,0.015)'
+                    : selected ? 'var(--accent)' : 'rgba(255,255,255,0.04)',
+                  color: unavailable ? 'rgba(255,255,255,0.3)' : 'white',
+                  border: unavailable
+                    ? '1px solid rgba(255,255,255,0.04)'
+                    : selected ? '1px solid var(--accent)' : '1px solid var(--border-color)',
                   borderRadius: '8px',
-                  cursor: 'pointer',
+                  cursor: unavailable ? 'not-allowed' : 'pointer',
                   textAlign: 'left',
                   fontWeight: selected ? 700 : 400,
                   fontSize: '0.88rem',
+                  opacity: unavailable ? 0.5 : 1,
                   transition: 'all 0.15s',
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -408,7 +494,17 @@ export default function TeamBuilder({ token }) {
                 }}
               >
                 <span>{selected ? '✓ ' : ''}{p.name}</span>
-                {Object.entries(pinnedPositions).find(([k, v]) => v === p.id) && (
+                {activeSlot && preference === 'preferred' && (
+                  <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(52,211,153,0.15)', color: '#34d399' }}>
+                    선호
+                  </span>
+                )}
+                {activeSlot && preference === 'impossible' && (
+                  <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(239,68,68,0.08)', color: 'rgba(248,113,113,0.6)' }}>
+                    불가
+                  </span>
+                )}
+                {!activeSlot && Object.entries(pinnedPositions).find(([, v]) => v === p.id) && (
                   <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(255,255,255,0.2)' }}>
                     📌 고정됨
                   </span>
