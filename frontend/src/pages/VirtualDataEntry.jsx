@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 
 const POSITIONS = ['top', 'jungle', 'mid', 'adc', 'support'];
 const POS_LABELS = { top: '탑', jungle: '정글', mid: '미드', adc: '원딜', support: '서포터' };
@@ -82,11 +83,65 @@ export default function VirtualDataEntry({ token, userInfo }) {
   const [teamB, setTeamB] = useState({ top: '', jungle: '', mid: '', adc: '', support: '' });
   const [activeSlot, setActiveSlot] = useState(null); // e.g., { team: 'A', pos: 'top' }
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
+  const [usage, setUsage] = useState(null);
+  const [reward, setReward] = useState(null);
+  const [couponImageUrl, setCouponImageUrl] = useState(null);
+  const [missToast, setMissToast] = useState(null);
+  const randomizeTimeoutRef = useRef(null);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const authHeaders = { Authorization: `Bearer ${token}` };
+
+  const fetchUsage = async () => {
+    if (!token) return;
+    const res = await axios.get('/api/virtual/stats', { headers: authHeaders });
+    setUsage(res.data);
+  };
+
+  const fetchCouponImage = async (matchId) => {
+    const res = await axios.get(`/api/virtual/coupons/${matchId}`, {
+      headers: authHeaders,
+      responseType: 'blob',
+    });
+    const objectUrl = URL.createObjectURL(res.data);
+    setCouponImageUrl(previous => {
+      if (previous) URL.revokeObjectURL(previous);
+      return objectUrl;
+    });
+  };
+
+  const showRewardPreview = async () => {
+    try {
+      const res = await axios.get('/api/admin/virtual/coupon-preview', {
+        headers: authHeaders,
+        responseType: 'blob',
+      });
+      const objectUrl = URL.createObjectURL(res.data);
+      setCouponImageUrl(previous => {
+        if (previous) URL.revokeObjectURL(previous);
+        return objectUrl;
+      });
+      setReward({ won: true, preview: true, today_count: usage?.today_count || 1 });
+    } catch (err) {
+      alert('미리보기를 불러오지 못했습니다: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  useEffect(() => {
+    fetchUsage().catch(() => {});
+  }, [token]);
+
+  useEffect(() => () => {
+    if (couponImageUrl) URL.revokeObjectURL(couponImageUrl);
+  }, [couponImageUrl]);
+
+  useEffect(() => () => {
+    if (randomizeTimeoutRef.current) clearTimeout(randomizeTimeoutRef.current);
   }, []);
 
   const getTeamAvgMmr = (assign) => {
@@ -156,22 +211,56 @@ export default function VirtualDataEntry({ token, userInfo }) {
     }
 
     try {
-      await axios.post('/api/matches', {
+      const res = await axios.post('/api/matches', {
         team_a_ids: aIds.map(Number),
         team_b_ids: bIds.map(Number),
         winner,
         is_virtual: true
       }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: authHeaders
       });
-      // alert 삭제하고 바로 다음 랜덤 배치 수행
-      handleRandomize();
+      const virtualReward = res.data.virtual_reward;
+      if (virtualReward) {
+        if (virtualReward.won) {
+          if (randomizeTimeoutRef.current) {
+            clearTimeout(randomizeTimeoutRef.current);
+            randomizeTimeoutRef.current = null;
+          }
+          setMissToast(null);
+          setReward(virtualReward);
+          fetchCouponImage(virtualReward.coupon_match_id).catch(() => setCouponImageUrl(null));
+        } else {
+          setReward(null);
+          setMissToast({ todayCount: virtualReward.today_count });
+          setCouponImageUrl(previous => {
+            if (previous) URL.revokeObjectURL(previous);
+            return null;
+          });
+          if (randomizeTimeoutRef.current) clearTimeout(randomizeTimeoutRef.current);
+          randomizeTimeoutRef.current = setTimeout(() => {
+            setMissToast(null);
+            handleRandomize();
+          }, 900);
+        }
+      } else {
+        handleRandomize();
+      }
+      fetchUsage().catch(() => {});
     } catch (err) {
+      if (err.response?.status === 429) {
+        fetchUsage().catch(() => {});
+      }
       alert('오류 발생: ' + (err.response?.data?.detail || err.message));
     }
   };
 
   const handleRandomize = () => {
+    if (randomizeTimeoutRef.current) {
+      clearTimeout(randomizeTimeoutRef.current);
+      randomizeTimeoutRef.current = null;
+    }
+    setMissToast(null);
+
     if (players.length < 10) {
       alert('선수가 10명 미만입니다.');
       return;
@@ -318,14 +407,36 @@ export default function VirtualDataEntry({ token, userInfo }) {
       transition: 'all 0.1s',
     };
   };
+  const inputDisabled = usage?.remaining_today === 0 || Boolean(missToast) || Boolean(reward);
 
   return (
     <div className="card" style={{ padding: isMobile ? '0.6rem' : '2rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: isMobile ? '0.35rem' : '1rem', marginBottom: '0.5rem' }}>
         <h2 style={{ margin: 0, fontSize: isMobile ? '0.92rem' : undefined }}>🧪 가상 데이터 입력 모드</h2>
-        <button className="btn" onClick={handleRandomize} style={{ background: 'rgba(94,106,210,0.3)', border: '1px solid var(--accent)', padding: isMobile ? '0.38rem 0.48rem' : undefined, fontSize: isMobile ? '0.7rem' : undefined, whiteSpace: 'nowrap' }}>
+        <button disabled={inputDisabled} className="btn" onClick={handleRandomize} style={{ background: 'rgba(94,106,210,0.3)', border: '1px solid var(--accent)', opacity: inputDisabled ? 0.45 : 1, padding: isMobile ? '0.38rem 0.48rem' : undefined, fontSize: isMobile ? '0.7rem' : undefined, whiteSpace: 'nowrap' }}>
           🎲 랜덤 배치
         </button>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: isMobile ? '0.45rem' : '1rem', fontSize: isMobile ? '0.68rem' : '0.86rem' }}>
+        <span style={{ color: usage?.remaining_today === 0 ? '#f87171' : 'var(--text-secondary)', fontWeight: 600 }}>
+          오늘 입력 {usage ? `${usage.today_count} / ${usage.daily_limit}` : '조회 중...'}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.4rem' : '0.7rem' }}>
+          {userInfo?.is_admin && (
+            <button className="btn" disabled={inputDisabled} onClick={showRewardPreview} style={{
+              padding: isMobile ? '0.28rem 0.38rem' : '0.35rem 0.6rem',
+              fontSize: isMobile ? '0.62rem' : '0.78rem',
+              opacity: inputDisabled ? 0.45 : 1,
+              color: '#ffe24f',
+              border: '1px solid rgba(255,211,65,0.45)',
+              background: 'rgba(255,184,0,0.1)',
+              whiteSpace: 'nowrap',
+            }}>
+              당첨 효과 보기
+            </button>
+          )}
+          <Link to="/virtual-stats" style={{ color: 'var(--accent-hover)', textDecoration: 'none', whiteSpace: 'nowrap' }}>내 기록 보기</Link>
+        </div>
       </div>
       <p style={{ display: isMobile ? 'none' : undefined, marginBottom: '2rem', color: 'var(--text-secondary)' }}>
         슬롯을 클릭한 뒤, 아래의 선수 목록에서 선수를 골라 배정하세요. (본인은 제외됨)
@@ -358,7 +469,7 @@ export default function VirtualDataEntry({ token, userInfo }) {
               </div>
             );
           })}
-          <button className="btn" style={{ width: '100%', background: '#3b82f6', marginTop: isMobile ? '0.35rem' : '1rem', padding: isMobile ? '0.4rem 0.12rem' : undefined, fontSize: isMobile ? '0.68rem' : undefined, whiteSpace: 'nowrap' }} onClick={() => handleSubmit('A')}>
+          <button disabled={inputDisabled} className="btn" style={{ width: '100%', background: '#3b82f6', opacity: inputDisabled ? 0.45 : 1, marginTop: isMobile ? '0.35rem' : '1rem', padding: isMobile ? '0.4rem 0.12rem' : undefined, fontSize: isMobile ? '0.68rem' : undefined, whiteSpace: 'nowrap' }} onClick={() => handleSubmit('A')}>
             🔵 A팀 승리 기록
           </button>
         </div>
@@ -388,7 +499,7 @@ export default function VirtualDataEntry({ token, userInfo }) {
               </div>
             );
           })}
-          <button className="btn" style={{ width: '100%', background: '#ef4444', marginTop: isMobile ? '0.35rem' : '1rem', padding: isMobile ? '0.4rem 0.12rem' : undefined, fontSize: isMobile ? '0.68rem' : undefined, whiteSpace: 'nowrap' }} onClick={() => handleSubmit('B')}>
+          <button disabled={inputDisabled} className="btn" style={{ width: '100%', background: '#ef4444', opacity: inputDisabled ? 0.45 : 1, marginTop: isMobile ? '0.35rem' : '1rem', padding: isMobile ? '0.4rem 0.12rem' : undefined, fontSize: isMobile ? '0.68rem' : undefined, whiteSpace: 'nowrap' }} onClick={() => handleSubmit('B')}>
             🔴 B팀 승리 기록
           </button>
         </div>
@@ -418,6 +529,68 @@ export default function VirtualDataEntry({ token, userInfo }) {
           {players.length === 0 && <span style={{ color: 'var(--text-secondary)' }}>배정할 수 있는 선수가 없습니다.</span>}
         </div>
       </div>}
+      {missToast && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1250,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          pointerEvents: 'none',
+        }}>
+          <div style={{
+            minWidth: isMobile ? '210px' : '240px',
+            padding: isMobile ? '1rem 1.3rem' : '1.15rem 1.7rem',
+            textAlign: 'center', color: '#e6def0',
+            background: 'rgba(32,31,43,0.96)', border: '1px solid #665976', borderRadius: '16px',
+            boxShadow: '0 16px 42px rgba(0,0,0,0.55)',
+            transform: 'translateY(-6vh)',
+          }}>
+            <div style={{ fontSize: isMobile ? '1.65rem' : '1.85rem', fontWeight: 900, color: '#c6bed0' }}>꽝!</div>
+            <div style={{ fontSize: '0.86rem', marginTop: '0.22rem', color: '#978da7' }}>다음 랜덤 배치를 준비합니다...</div>
+          </div>
+        </div>
+      )}
+      {reward?.won && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1200,
+          background: 'radial-gradient(circle, rgba(106,73,12,0.48) 0%, rgba(0,0,0,0.88) 62%)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem',
+        }}>
+          <div style={{
+            maxWidth: '430px', width: '100%', textAlign: 'center',
+            padding: isMobile ? '1.3rem 1rem 1.2rem' : '1.7rem 1.5rem 1.45rem',
+            borderRadius: '22px', border: '2px solid #ffd341',
+            background: 'linear-gradient(145deg, #332008 0%, #171318 48%, #241309 100%)',
+            boxShadow: '0 0 0 5px rgba(255,211,65,0.15), 0 0 48px rgba(255,184,0,0.5), 0 22px 56px rgba(0,0,0,0.7)',
+          }}>
+            <div style={{ fontSize: isMobile ? '1.05rem' : '1.22rem', letterSpacing: '0.18rem', marginBottom: '0.35rem' }}>
+              🎉 ✨ 🎟️ ✨ 🎉
+            </div>
+            <h1 style={{
+              color: '#ffe24f', fontSize: isMobile ? '2.35rem' : '2.8rem', fontWeight: 1000,
+              margin: '0 0 0.25rem', letterSpacing: '0.09rem',
+              textShadow: '0 0 18px rgba(255,216,54,0.85)',
+            }}>당첨!!!!!</h1>
+            <div style={{ color: '#fff2a6', fontWeight: 800, fontSize: '1.05rem', marginBottom: '0.35rem' }}>
+              {reward.preview ? '관리자 이펙트 미리보기' : '쿠폰이 터졌습니다!'}
+            </div>
+            <p style={{ color: '#e6d7af', margin: '0 0 1rem', fontSize: '0.92rem' }}>
+              {reward.preview ? '쿠폰 소모 및 입력 기록 없이 표시 중입니다.' : `오늘 ${reward.today_count}번째 입력의 행운입니다.`}
+            </p>
+            {couponImageUrl ? (
+              <div style={{ padding: '0.35rem', borderRadius: '14px', background: 'linear-gradient(135deg, #ffd238, #f48c13)', marginBottom: '1.05rem' }}>
+                <img src={couponImageUrl} alt="당첨 쿠폰" style={{ display: 'block', width: '100%', maxHeight: '48vh', objectFit: 'contain', borderRadius: '10px', background: '#fff' }} />
+              </div>
+            ) : (
+              <div style={{ color: '#f0ce68', margin: '1.1rem 0', fontSize: '0.9rem' }}>쿠폰을 불러오는 중...</div>
+            )}
+            <button className="btn" style={{ width: '100%', fontWeight: 800, fontSize: '1rem', background: '#f5b400', borderColor: '#f5b400', color: '#231400' }} onClick={() => {
+              setReward(null);
+              if (!reward.preview) handleRandomize();
+            }}>
+              {reward.preview ? '미리보기 닫기' : '쿠폰 확인 완료 · 다음 배치'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

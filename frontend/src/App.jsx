@@ -12,6 +12,7 @@ import DBViewer from './pages/DBViewer';
 import Guide from './pages/Guide';
 import DataManagement from './pages/DataManagement';
 import MatchResults from './pages/MatchResults';
+import VirtualStats from './pages/VirtualStats';
 
 // 모바일 접속 시 PC 전용 페이지 접근을 제어하는 가드 컴포넌트
 function PcOnlyGuard({ children }) {
@@ -176,6 +177,7 @@ function App() {
               {navLink('/teambuilder','⚖️ 팀 짜기 (10인)')}
               {navLink('/record',     '⚔️ 실전 결과 기록')}
               {navLink('/virtual',    '🧪 가상 데이터 입력')}
+              {navLink('/virtual-stats', '🎟️ 내 가상 입력 기록')}
               
               {userInfo?.is_admin && (
                 <>
@@ -236,6 +238,7 @@ function App() {
           <Route path="/teambuilder"element={<PcOnlyGuard><TeamBuilder token={token} /></PcOnlyGuard>} />
           <Route path="/record"     element={<PcOnlyGuard><RecordMatch token={token} /></PcOnlyGuard>} />
           <Route path="/virtual"    element={<VirtualDataEntry token={token} userInfo={userInfo} />} />
+          <Route path="/virtual-stats" element={<VirtualStats token={token} />} />
           <Route path="/admin"      element={<PcOnlyGuard>{userInfo?.is_admin ? <Admin token={token} userInfo={userInfo} /> : <Leaderboard />}</PcOnlyGuard>} />
           <Route path="/datamanage" element={<PcOnlyGuard>{userInfo?.is_admin ? <DataManagement token={token} /> : <Leaderboard />}</PcOnlyGuard>} />
         </Routes>

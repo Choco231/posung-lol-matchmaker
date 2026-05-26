@@ -52,6 +52,9 @@ class Match(Base):
     is_virtual = Column(Boolean, default=False)
     winner_team = Column(String) # "A" or "B"
     recorded_by_name = Column(String, nullable=True) # 입력한 사람 이름
+    virtual_attempt_number = Column(Integer, nullable=True)
+    coupon_probability = Column(Float, nullable=True)
+    coupon_filename = Column(String, nullable=True)
     
     # Team A players (IDs)
     team_a_top_id = Column(Integer, ForeignKey("players.id"))
