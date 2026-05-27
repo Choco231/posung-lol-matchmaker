@@ -27,14 +27,15 @@ services:
     depends_on:
       - backend
 
-  ngrok:
-    image: ngrok/ngrok:latest
-    container_name: loltc-ngrok
-    environment:
-      - NGROK_AUTHTOKEN=3DwSGT6Wl67gBQHy6zzmWvjp9RZ_2jJAXKwe3jjr5UBAKokBL
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: loltc-cloudflared
+    restart: unless-stopped
     command:
-      - "http"
-      - "frontend:5173"
-      - "--url=mandate-move-stiffly.ngrok-free.dev"
+      - "tunnel"
+      - "--no-autoupdate"
+      - "run"
+      - "--token"
+      - "${CLOUDFLARE_TUNNEL_TOKEN}"
     depends_on:
       - frontend
