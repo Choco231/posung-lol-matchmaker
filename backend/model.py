@@ -3,20 +3,27 @@ import itertools
 import json
 
 # Setup default TrueSkill environment (50.0 scale).
-# tau=1.55 keeps settled, evenly matched games near a +/-1.5 displayed MMR change.
-env = trueskill.TrueSkill(mu=50.0, sigma=16.666, beta=8.333, tau=1.55, draw_probability=0.0)
+# Default tau is used for virtual data entry. Real match records can override it.
+env = trueskill.TrueSkill(mu=50.0, sigma=16.666, beta=8.333, tau=1.0, draw_probability=0.0)
 env.make_as_global()
 SETTLED_SIGMA = 8.25
 
-def update_ratings(team_a_ratings, team_b_ratings, team_a_won: bool):
+def update_ratings(team_a_ratings, team_b_ratings, team_a_won: bool, tau: float = None):
     """
     team_a_ratings: list of trueskill.Rating objects
     team_b_ratings: list of trueskill.Rating objects
     """
+    rating_env = env if tau is None else trueskill.TrueSkill(
+        mu=env.mu,
+        sigma=env.sigma,
+        beta=env.beta,
+        tau=tau,
+        draw_probability=env.draw_probability,
+    )
     if team_a_won:
-        new_team_a, new_team_b = trueskill.rate([team_a_ratings, team_b_ratings], ranks=[0, 1])
+        new_team_a, new_team_b = rating_env.rate([team_a_ratings, team_b_ratings], ranks=[0, 1])
     else:
-        new_team_a, new_team_b = trueskill.rate([team_a_ratings, team_b_ratings], ranks=[1, 0])
+        new_team_a, new_team_b = rating_env.rate([team_a_ratings, team_b_ratings], ranks=[1, 0])
     return new_team_a, new_team_b
 
 def get_mmr(rating):
@@ -25,7 +32,23 @@ def get_mmr(rating):
     # Let's just return mu, or a scaled version
     return rating.mu
 
-def is_valid_team(team, positions, team_name, pinned_positions):
+def normalize_position_pins(pinned_positions, positions):
+    normalized = {pos: [] for pos in positions}
+    for pos, player_ids in (pinned_positions or {}).items():
+        if pos not in normalized:
+            continue
+        if player_ids is None:
+            continue
+        if not isinstance(player_ids, list):
+            player_ids = [player_ids]
+        unique_ids = []
+        for player_id in player_ids:
+            if player_id not in unique_ids:
+                unique_ids.append(player_id)
+        normalized[pos] = unique_ids[:2]
+    return normalized
+
+def is_valid_team(team, positions):
     for i, player in enumerate(team):
         pos = positions[i]
         
@@ -33,12 +56,17 @@ def is_valid_team(team, positions, team_name, pinned_positions):
         impossible = json.loads(player.impossible_positions) if player.impossible_positions else []
         if pos in impossible:
             return False
-            
-        # Check pinned positions for this slot
-        pin_key = f"{team_name}_{pos}"
-        if pin_key in pinned_positions and player.id != pinned_positions[pin_key]:
+
+    return True
+
+def satisfies_position_pins(team_a, team_b, positions, pinned_positions):
+    for i, pos in enumerate(positions):
+        pinned_ids = pinned_positions.get(pos, [])
+        if not pinned_ids:
+            continue
+        assigned_ids = {team_a[i].id, team_b[i].id}
+        if any(player_id not in assigned_ids for player_id in pinned_ids):
             return False
-            
     return True
 
 def get_team_mmr(team, positions):
@@ -50,44 +78,34 @@ def get_team_mmr(team, positions):
     return total
 
 def find_best_matchups(players, pinned_positions=None, top_n=100):
-    if pinned_positions is None:
-        pinned_positions = {}
-        
     positions = ["top", "jungle", "mid", "adc", "support"]
-    seen_splits: dict = {}
+    pinned_positions = normalize_position_pins(pinned_positions, positions)
+    pinned_ids = {
+        player_id
+        for player_ids in pinned_positions.values()
+        for player_id in player_ids
+    }
+    selected_ids = {player.id for player in players}
+    if not pinned_ids.issubset(selected_ids):
+        return []
 
-    a_pinned_ids = [pid for key, pid in pinned_positions.items() if key.startswith("A_")]
-    b_pinned_ids = [pid for key, pid in pinned_positions.items() if key.startswith("B_")]
+    seen_splits: dict = {}
 
     for team_a_comb in itertools.combinations(players, 5):
         team_b_comb = tuple(p for p in players if p not in team_a_comb)
-        
-        # Pruning: ensure team_a_comb contains all A-pinned players
-        a_ids = [p.id for p in team_a_comb]
-        if any(pid not in a_ids for pid in a_pinned_ids):
-            continue
-            
-        # Pruning: ensure team_b_comb contains all B-pinned players
-        b_ids = [p.id for p in team_b_comb]
-        if any(pid not in b_ids for pid in b_pinned_ids):
-            continue
 
-        ids_a = frozenset(a_ids)
-        ids_b = frozenset(b_ids)
-        
-        # Since pinning breaks symmetry, we should NOT use frozenset([ids_a, ids_b]) as the key if there are pins!
-        # If there are pins, (A,B) is NOT the same as (B,A).
-        if pinned_positions:
-            split_key = (ids_a, ids_b)
-        else:
-            split_key = frozenset([ids_a, ids_b])
+        ids_a = frozenset(p.id for p in team_a_comb)
+        ids_b = frozenset(p.id for p in team_b_comb)
+        split_key = frozenset([ids_a, ids_b])
 
         for perm_a in itertools.permutations(team_a_comb):
-            if not is_valid_team(perm_a, positions, "A", pinned_positions):
+            if not is_valid_team(perm_a, positions):
                 continue
 
             for perm_b in itertools.permutations(team_b_comb):
-                if not is_valid_team(perm_b, positions, "B", pinned_positions):
+                if not is_valid_team(perm_b, positions):
+                    continue
+                if not satisfies_position_pins(perm_a, perm_b, positions, pinned_positions):
                     continue
 
                 mmr_a = get_team_mmr(perm_a, positions)

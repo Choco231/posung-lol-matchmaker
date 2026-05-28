@@ -866,7 +866,8 @@ def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current
     team_b_prev_mus = [getattr(p, f"{positions[i]}_mu") for i, p in enumerate(team_b_players)]
 
     team_a_won = req.winner == "A"
-    new_team_a, new_team_b = update_ratings(team_a_ratings, team_b_ratings, team_a_won)
+    rating_tau = 1.0 if req.is_virtual else 1.6
+    new_team_a, new_team_b = update_ratings(team_a_ratings, team_b_ratings, team_a_won, tau=rating_tau)
 
     mmr_changes = []
 

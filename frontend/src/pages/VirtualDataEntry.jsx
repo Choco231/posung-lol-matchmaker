@@ -77,6 +77,60 @@ function tryAssignWeighted(players5) {
   return result;
 }
 
+function getTeamAvgMmrFromPlayers(assign, sourcePlayers) {
+  let sum = 0;
+  let count = 0;
+  POSITIONS.forEach(pos => {
+    const pId = assign[pos];
+    const player = sourcePlayers.find(p => String(p.id) === String(pId));
+    if (player) {
+      if (pos === 'top') sum += player.top_mu;
+      else if (pos === 'jungle') sum += player.jungle_mu;
+      else if (pos === 'mid') sum += player.mid_mu;
+      else if (pos === 'adc') sum += player.adc_mu;
+      else if (pos === 'support') sum += player.support_mu;
+      count++;
+    }
+  });
+  return count > 0 ? sum / count : 0;
+}
+
+function filterVirtualPlayers(allPlayers, userInfo) {
+  const cleanLolId = (id) => {
+    if (!id) return '';
+    return id.replace(/\s+/g, '').toLowerCase();
+  };
+
+  const getLolIdFromPlayerName = (name) => {
+    if (!name) return '';
+    const parts = name.split('/');
+    if (parts.length > 1) {
+      return parts[parts.length - 1];
+    }
+    return '';
+  };
+
+  return allPlayers.filter(p => {
+    if (p.is_guest) {
+      return false;
+    }
+
+    const myLolId = cleanLolId(userInfo?.lol_id);
+    const pLolId = cleanLolId(getLolIdFromPlayerName(p.name));
+
+    // 1. 롤 아이디가 지정되어 있고 서로 일치하면 본인으로 취급하여 제외
+    if (myLolId && pLolId && myLolId === pLolId) {
+      return false;
+    }
+
+    if (cleanLolId(p.name) === '본인') {
+      return false;
+    }
+
+    return true;
+  });
+}
+
 export default function VirtualDataEntry({ token, userInfo }) {
   const [players, setPlayers] = useState([]);
   const [teamA, setTeamA] = useState({ top: '', jungle: '', mid: '', adc: '', support: '' });
@@ -101,6 +155,13 @@ export default function VirtualDataEntry({ token, userInfo }) {
     if (!token) return;
     const res = await axios.get('/api/virtual/stats', { headers: authHeaders });
     setUsage(res.data);
+  };
+
+  const fetchPlayers = async () => {
+    const res = await axios.get('/api/players');
+    const filtered = filterVirtualPlayers(res.data, userInfo);
+    setPlayers(filtered);
+    return filtered;
   };
 
   const fetchCouponImage = async (matchId) => {
@@ -145,60 +206,11 @@ export default function VirtualDataEntry({ token, userInfo }) {
   }, []);
 
   const getTeamAvgMmr = (assign) => {
-    let sum = 0;
-    let count = 0;
-    POSITIONS.forEach(pos => {
-      const pId = assign[pos];
-      const player = players.find(p => String(p.id) === String(pId));
-      if (player) {
-        if (pos === 'top') sum += player.top_mu;
-        else if (pos === 'jungle') sum += player.jungle_mu;
-        else if (pos === 'mid') sum += player.mid_mu;
-        else if (pos === 'adc') sum += player.adc_mu;
-        else if (pos === 'support') sum += player.support_mu;
-        count++;
-      }
-    });
-    return count > 0 ? sum / count : 0;
+    return getTeamAvgMmrFromPlayers(assign, players);
   };
 
   useEffect(() => {
-    axios.get('/api/players').then(res => {
-      const cleanLolId = (id) => {
-        if (!id) return '';
-        return id.replace(/\s+/g, '').toLowerCase();
-      };
-
-      const getLolIdFromPlayerName = (name) => {
-        if (!name) return '';
-        const parts = name.split('/');
-        if (parts.length > 1) {
-          return parts[parts.length - 1];
-        }
-        return '';
-      };
-
-      const filtered = res.data.filter(p => {
-        if (p.is_guest) {
-          return false;
-        }
-
-        const myLolId = cleanLolId(userInfo?.lol_id);
-        const pLolId = cleanLolId(getLolIdFromPlayerName(p.name));
-
-        // 1. 롤 아이디가 지정되어 있고 서로 일치하면 본인으로 취급하여 제외
-        if (myLolId && pLolId && myLolId === pLolId) {
-          return false;
-        }
-
-        if (cleanLolId(p.name) === '본인') {
-          return false;
-        }
-
-        return true;
-      });
-      setPlayers(filtered);
-    });
+    fetchPlayers().catch(() => {});
   }, [userInfo]);
 
   const handleSubmit = async (winner) => {
@@ -237,13 +249,19 @@ export default function VirtualDataEntry({ token, userInfo }) {
             return null;
           });
           if (randomizeTimeoutRef.current) clearTimeout(randomizeTimeoutRef.current);
-          randomizeTimeoutRef.current = setTimeout(() => {
+          randomizeTimeoutRef.current = setTimeout(async () => {
             setMissToast(null);
-            handleRandomize();
+            try {
+              const latestPlayers = await fetchPlayers();
+              handleRandomize(latestPlayers);
+            } catch {
+              handleRandomize();
+            }
           }, 900);
         }
       } else {
-        handleRandomize();
+        const latestPlayers = await fetchPlayers();
+        handleRandomize(latestPlayers);
       }
       fetchUsage().catch(() => {});
     } catch (err) {
@@ -254,14 +272,14 @@ export default function VirtualDataEntry({ token, userInfo }) {
     }
   };
 
-  const handleRandomize = () => {
+  const handleRandomize = (sourcePlayers = players) => {
     if (randomizeTimeoutRef.current) {
       clearTimeout(randomizeTimeoutRef.current);
       randomizeTimeoutRef.current = null;
     }
     setMissToast(null);
 
-    if (players.length < 10) {
+    if (sourcePlayers.length < 10) {
       alert('선수가 10명 미만입니다.');
       return;
     }
@@ -269,7 +287,7 @@ export default function VirtualDataEntry({ token, userInfo }) {
     const MAX_MMR_DIFF = 1.0; // 허용되는 최대 양 팀 평균 MMR 격차 (1점)
 
     for (let attempt = 0; attempt < 2000; attempt++) {
-      const picked = shuffle(players).slice(0, 10);
+      const picked = shuffle(sourcePlayers).slice(0, 10);
       const half  = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
       const idxA  = half.slice(0, 5).map(i => picked[i]);
       const idxB  = half.slice(5, 10).map(i => picked[i]);
@@ -278,8 +296,8 @@ export default function VirtualDataEntry({ token, userInfo }) {
       const assignB = tryAssignWeighted(idxB);
 
       if (assignA && assignB) {
-        const avgA = getTeamAvgMmr(assignA);
-        const avgB = getTeamAvgMmr(assignB);
+        const avgA = getTeamAvgMmrFromPlayers(assignA, sourcePlayers);
+        const avgB = getTeamAvgMmrFromPlayers(assignB, sourcePlayers);
         const diff = Math.abs(avgA - avgB);
 
         // 양 팀 평균 MMR 격차가 1점 이하인 경우에만 매칭 확정
@@ -584,7 +602,11 @@ export default function VirtualDataEntry({ token, userInfo }) {
             )}
             <button className="btn" style={{ width: '100%', fontWeight: 800, fontSize: '1rem', background: '#f5b400', borderColor: '#f5b400', color: '#231400' }} onClick={() => {
               setReward(null);
-              if (!reward.preview) handleRandomize();
+              if (!reward.preview) {
+                fetchPlayers()
+                  .then(latestPlayers => handleRandomize(latestPlayers))
+                  .catch(() => handleRandomize());
+              }
             }}>
               {reward.preview ? '미리보기 닫기' : '쿠폰 확인 완료 · 다음 배치'}
             </button>

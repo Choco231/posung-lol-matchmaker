@@ -4,15 +4,22 @@ import axios from 'axios';
 
 const PAGE_SIZE = 10;
 
-const POSITION_LABELS = ["Top", "Jungle", "Mid", "ADC", "Support"];
-const POSITION_ICONS  = ["🛡️", "🌿", "⚡", "🏹", "💊"];
+const POSITIONS = [
+  { id: 'top', label: 'Top', icon: '🛡️' },
+  { id: 'jungle', label: 'Jungle', icon: '🌿' },
+  { id: 'mid', label: 'Mid', icon: '⚡' },
+  { id: 'adc', label: 'ADC', icon: '🏹' },
+  { id: 'support', label: 'Support', icon: '💊' },
+];
+const POSITION_LABELS = POSITIONS.map(pos => pos.label);
+const POSITION_ICONS  = POSITIONS.map(pos => pos.icon);
 
 export default function TeamBuilder({ token }) {
   const navigate = useNavigate();
   const [players, setPlayers]         = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [pinnedPositions, setPinnedPositions] = useState({}); // { A_top: pId, B_jungle: pId }
-  const [activeSlot, setActiveSlot]   = useState(null); // { team: 'A', pos: 'top' }
+  const [pinnedPositions, setPinnedPositions] = useState({}); // { top: [pId, pId], jungle: [...] }
+  const [activeSlot, setActiveSlot]   = useState(null); // 'top' | 'jungle' | 'mid' | 'adc' | 'support'
   const [matchups, setMatchups]       = useState([]);
   const [total, setTotal]             = useState(0);
   const [page, setPage]               = useState(0);   // 0-indexed
@@ -62,22 +69,30 @@ export default function TeamBuilder({ token }) {
 
     if (activeSlot) {
       const player = players.find(p => p.id === pId);
-      if (!player || getPositionPreference(player, activeSlot.pos) === 'impossible') return;
+      if (!player || getPositionPreference(player, activeSlot) === 'impossible') return;
       if (!selectedIds.includes(pId) && selectedIds.length >= 10) {
         alert('이미 10명이 선택되었습니다. 다른 선수를 빼고 고정하세요.');
         return;
       }
 
-      const pinKey = `${activeSlot.team}_${activeSlot.pos}`;
       const newPins = { ...pinnedPositions };
-      
-      // 만약 클릭한 선수가 이미 다른 곳에 고정되어 있다면 그 고정을 해제
-      for (const k in newPins) {
-        if (newPins[k] === pId) delete newPins[k];
+      const wasPinnedInActiveSlot = (pinnedPositions[activeSlot] || []).includes(pId);
+
+      // 만약 클릭한 선수가 이미 다른 포지션에 고정되어 있다면 그 고정을 해제
+      for (const pos in newPins) {
+        newPins[pos] = (newPins[pos] || []).filter(id => id !== pId);
+        if (newPins[pos].length === 0) delete newPins[pos];
       }
-      
-      // 이 선수를 activeSlot에 고정
-      newPins[pinKey] = pId;
+
+      const currentPins = newPins[activeSlot] || [];
+      if (!wasPinnedInActiveSlot) {
+        if (currentPins.length >= 2) {
+          alert('한 포지션에는 최대 2명까지만 고정할 수 있습니다.');
+          return;
+        }
+        newPins[activeSlot] = [...currentPins, pId];
+      }
+
       setPinnedPositions(newPins);
       
       // 10명 선택 목록에 없다면 자동 추가
@@ -85,7 +100,6 @@ export default function TeamBuilder({ token }) {
         setSelectedIds([...selectedIds, pId]);
       }
       
-      // 자동 다음 슬롯 (선택적)
       setActiveSlot(null);
     } else {
       // 슬롯 선택 안 된 상태면 그냥 10명 토글 및 고정 해제
@@ -93,8 +107,9 @@ export default function TeamBuilder({ token }) {
         setSelectedIds(selectedIds.filter(id => id !== pId));
         // 이 선수의 고정도 해제
         const newPins = { ...pinnedPositions };
-        for (const k in newPins) {
-          if (newPins[k] === pId) delete newPins[k];
+        for (const pos in newPins) {
+          newPins[pos] = (newPins[pos] || []).filter(id => id !== pId);
+          if (newPins[pos].length === 0) delete newPins[pos];
         }
         setPinnedPositions(newPins);
       } else {
@@ -104,18 +119,11 @@ export default function TeamBuilder({ token }) {
     }
   };
 
-  const handleSlotClick = (team, pos) => {
-    if (activeSlot?.team === team && activeSlot?.pos === pos) {
-      // Toggle off and unpin
-      const pinKey = `${team}_${pos}`;
-      const newPins = { ...pinnedPositions };
-      if (newPins[pinKey]) {
-        delete newPins[pinKey];
-        setPinnedPositions(newPins);
-      }
+  const handleSlotClick = (pos) => {
+    if (activeSlot === pos) {
       setActiveSlot(null);
     } else {
-      setActiveSlot({ team, pos });
+      setActiveSlot(pos);
     }
   };
 
@@ -221,7 +229,7 @@ export default function TeamBuilder({ token }) {
   const selectablePlayers = activeSlot
     ? [...players].sort((a, b) => {
         const priority = { preferred: 0, non_preferred: 1, impossible: 2 };
-        return priority[getPositionPreference(a, activeSlot.pos)] - priority[getPositionPreference(b, activeSlot.pos)];
+        return priority[getPositionPreference(a, activeSlot)] - priority[getPositionPreference(b, activeSlot)];
       })
     : players;
 
@@ -456,7 +464,7 @@ export default function TeamBuilder({ token }) {
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginBottom: '1rem' }}>
           {activeSlot
-            ? `${activeSlot.team === 'A' ? 'Blue' : 'Red'} ${activeSlot.pos.toUpperCase()}에 고정할 선수를 선택하세요.`
+            ? `${activeSlot.toUpperCase()} 포지션에 고정할 선수를 선택하세요. 한 포지션당 최대 2명입니다.`
             : recentSelectionLoaded
               ? '최근 2시간 내 최신 실전 매치 참가자 10명이 선택되어 있습니다.'
               : '클릭하여 10명 선택 후 버튼을 누르세요.'}
@@ -465,8 +473,9 @@ export default function TeamBuilder({ token }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '1.2rem', maxHeight: '55vh', overflowY: 'auto' }}>
           {selectablePlayers.map(p => {
             const selected = selectedIds.includes(p.id);
-            const preference = getPositionPreference(p, activeSlot?.pos);
+            const preference = getPositionPreference(p, activeSlot);
             const unavailable = preference === 'impossible';
+            const pinnedEntry = Object.entries(pinnedPositions).find(([, ids]) => ids.includes(p.id));
             return (
               <button
                 key={p.id}
@@ -504,9 +513,9 @@ export default function TeamBuilder({ token }) {
                     불가
                   </span>
                 )}
-                {!activeSlot && Object.entries(pinnedPositions).find(([, v]) => v === p.id) && (
+                {!activeSlot && pinnedEntry && (
                   <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(255,255,255,0.2)' }}>
-                    📌 고정됨
+                    📌 {pinnedEntry[0].toUpperCase()}
                   </span>
                 )}
               </button>
@@ -633,56 +642,73 @@ export default function TeamBuilder({ token }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ margin: 0, fontSize: '1.05rem' }}>📌 포지션 고정 (선택 사항)</h3>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              슬롯을 클릭한 뒤 왼쪽 목록에서 선수를 누르면 고정됩니다.
+              포지션을 클릭한 뒤 왼쪽 목록에서 선수를 누르면 해당 포지션에 고정됩니다.
             </span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-            <div style={{ background: 'rgba(59,130,246,0.05)', borderRadius: '8px', padding: '1rem', border: '1px solid rgba(59,130,246,0.2)' }}>
-              <div style={{ color: '#3b82f6', fontWeight: 700, marginBottom: '0.75rem', textAlign: 'center' }}>🔵 Blue Team</div>
-              {POSITION_LABELS.map((label, i) => {
-                const posStr = label.toLowerCase();
-                const pinKey = `A_${posStr}`;
-                const isActive = activeSlot?.team === 'A' && activeSlot?.pos === posStr;
-                const pId = pinnedPositions[pinKey];
-                return (
-                  <div key={pinKey} onClick={() => handleSlotClick('A', posStr)} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.8rem', marginBottom: '0.4rem', borderRadius: '6px', cursor: 'pointer',
-                    background: isActive ? 'rgba(59,130,246,0.2)' : 'var(--panel-bg)',
-                    border: isActive ? '1px solid #3b82f6' : '1px solid var(--border-color)',
-                    transition: 'all 0.15s'
+          <p style={{ marginTop: 0, marginBottom: '1rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+            고정된 선수는 Blue/Red 팀이 아니라 포지션만 고정됩니다. 예를 들어 Top에 2명을 고정하면 두 명이 각각 양 팀 Top으로 배치됩니다.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.75rem' }}>
+            {POSITIONS.map(position => {
+              const pinnedIds = pinnedPositions[position.id] || [];
+              const isActive = activeSlot === position.id;
+              return (
+                <div
+                  key={position.id}
+                  onClick={() => handleSlotClick(position.id)}
+                  style={{
+                    minHeight: '8rem',
+                    padding: '0.9rem',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    background: isActive ? 'rgba(94,106,210,0.18)' : 'var(--panel-bg)',
+                    border: isActive ? '1px solid var(--accent-hover)' : '1px solid var(--border-color)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '0.75rem',
+                    color: isActive ? 'var(--accent-hover)' : 'var(--text-primary)',
+                    fontWeight: 700,
                   }}>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{POSITION_ICONS[i]} {label}</span>
-                    <span style={{ fontWeight: pId ? 700 : 400, color: pId ? '#3b82f6' : 'var(--text-secondary)' }}>
-                      {pId ? getPlayerName(pId) : '비어있음'}
+                    <span>{position.icon} {position.label}</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      {pinnedIds.length}/2
                     </span>
                   </div>
-                );
-              })}
-            </div>
-            
-            <div style={{ background: 'rgba(239,68,68,0.05)', borderRadius: '8px', padding: '1rem', border: '1px solid rgba(239,68,68,0.2)' }}>
-              <div style={{ color: '#ef4444', fontWeight: 700, marginBottom: '0.75rem', textAlign: 'center' }}>🔴 Red Team</div>
-              {POSITION_LABELS.map((label, i) => {
-                const posStr = label.toLowerCase();
-                const pinKey = `B_${posStr}`;
-                const isActive = activeSlot?.team === 'B' && activeSlot?.pos === posStr;
-                const pId = pinnedPositions[pinKey];
-                return (
-                  <div key={pinKey} onClick={() => handleSlotClick('B', posStr)} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.8rem', marginBottom: '0.4rem', borderRadius: '6px', cursor: 'pointer',
-                    background: isActive ? 'rgba(239,68,68,0.2)' : 'var(--panel-bg)',
-                    border: isActive ? '1px solid #ef4444' : '1px solid var(--border-color)',
-                    transition: 'all 0.15s'
-                  }}>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{POSITION_ICONS[i]} {label}</span>
-                    <span style={{ fontWeight: pId ? 700 : 400, color: pId ? '#ef4444' : 'var(--text-secondary)' }}>
-                      {pId ? getPlayerName(pId) : '비어있음'}
-                    </span>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                    {[0, 1].map(slotIndex => {
+                      const pId = pinnedIds[slotIndex];
+                      return (
+                        <div
+                          key={`${position.id}-${slotIndex}`}
+                          style={{
+                            minHeight: '2rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '0.45rem 0.55rem',
+                            borderRadius: '6px',
+                            background: pId ? 'rgba(94,106,210,0.14)' : 'rgba(255,255,255,0.035)',
+                            color: pId ? 'var(--accent-hover)' : 'var(--text-secondary)',
+                            border: pId ? '1px solid rgba(94,106,210,0.3)' : '1px dashed rgba(255,255,255,0.12)',
+                            fontSize: '0.78rem',
+                            fontWeight: pId ? 700 : 400,
+                          }}
+                        >
+                          {pId ? getPlayerName(pId) : `${slotIndex + 1}번째 고정 없음`}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
