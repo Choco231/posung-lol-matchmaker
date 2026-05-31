@@ -105,7 +105,7 @@ function App() {
     <div className="app-container">
       {isMobile && (
         <div className="mobile-header">
-          <span className="mobile-logo" onClick={() => navigate('/')}>포성대 LoL 스크림</span>
+          <span className="mobile-logo" onClick={() => navigate('/')}>호령회 LOL 스크림</span>
           {token && userInfo && (
             <span className="mobile-user-badge">
               👤 {userInfo.display_name || userInfo.username}
@@ -116,7 +116,7 @@ function App() {
 
       {!isMobile && (
         <div className="sidebar">
-          <h1 style={{ marginBottom: '1.5rem' }}>포성대<br/>LoL 스크림</h1>
+          <h1 style={{ marginBottom: '1.5rem' }}>호령회<br/>LOL 스크림</h1>
 
           {token ? (
             <div style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
