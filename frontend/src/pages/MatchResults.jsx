@@ -18,7 +18,45 @@ const POSITION_LABELS = {
   support: 'Support',
 };
 
-function DetailList({ title, items, color }) {
+function BanList({ title, items, color }) {
+  const rows = [];
+  for (let i = 0; i < items.length; i += i === 0 ? 3 : 2) {
+    rows.push(items.slice(i, i === 0 ? 3 : i + 2));
+  }
+
+  return (
+    <div style={{ flex: 1, minWidth: '240px' }}>
+      <h4 style={{ color, margin: '0 0 0.6rem 0' }}>{title}</h4>
+      {items.length === 0 ? (
+        <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>기록 없음</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+          {rows.map((row, rowIdx) => (
+            <div key={rowIdx} style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+              {row.map((item, idx) => (
+                <span
+                  key={`${item.champion || item}-${rowIdx}-${idx}`}
+                  style={{
+                    padding: '0.28rem 0.55rem',
+                    borderRadius: '14px',
+                    background: `${color}20`,
+                    color,
+                    border: `1px solid ${color}45`,
+                    fontSize: '0.82rem',
+                  }}
+                >
+                  {item.champion || item}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PickList({ title, items, color }) {
   return (
     <div style={{ flex: 1, minWidth: '240px' }}>
       <h4 style={{ color, margin: '0 0 0.6rem 0' }}>{title}</h4>
@@ -39,16 +77,13 @@ function DetailList({ title, items, color }) {
                 fontSize: '0.86rem',
               }}
             >
-              <span>{item.order ? `${item.order}. ` : ''}{item.champion || item}</span>
-              {(item.position || item.playerName) && (
-                <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap', textAlign: 'right' }}>
-                  {item.position && (POSITION_LABELS[item.position] || item.position)}
-                  {item.playerName && (
-                    <>
-                      {item.position && ' · '}
-                      {item.playerName}
-                    </>
-                  )}
+              <span style={{ color, minWidth: '3.5rem', fontWeight: 700 }}>
+                {item.position ? (POSITION_LABELS[item.position] || item.position) : '-'}
+              </span>
+              <span style={{ fontWeight: 700 }}>{item.champion || item}</span>
+              {item.playerName && (
+                <span style={{ color: 'var(--text-secondary)', marginLeft: 'auto', textAlign: 'right' }}>
+                  {item.playerName}
                 </span>
               )}
             </div>
@@ -114,13 +149,13 @@ function MatchDetailModal({ match, onClose }) {
         </div>
 
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.2rem' }}>
-          <DetailList title="Blue 밴" items={match.team_a_bans || []} color="#60a5fa" />
-          <DetailList title="Red 밴" items={match.team_b_bans || []} color="#f87171" />
+          <BanList title="Blue 밴" items={match.team_a_bans || []} color="#60a5fa" />
+          <BanList title="Red 밴" items={match.team_b_bans || []} color="#f87171" />
         </div>
 
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.2rem' }}>
-          <DetailList title="Blue 픽" items={withPlayerNames(match.team_a_picks, match.team_a)} color="#60a5fa" />
-          <DetailList title="Red 픽" items={withPlayerNames(match.team_b_picks, match.team_b)} color="#f87171" />
+          <PickList title="Blue 픽" items={withPlayerNames(match.team_a_picks, match.team_a)} color="#60a5fa" />
+          <PickList title="Red 픽" items={withPlayerNames(match.team_b_picks, match.team_b)} color="#f87171" />
         </div>
 
         <div>
