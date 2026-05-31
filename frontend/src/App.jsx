@@ -6,14 +6,12 @@ import Login from './pages/Login';
 import PlayerManagement from './pages/PlayerManagement';
 import TeamBuilder from './pages/TeamBuilder';
 import RecordMatch from './pages/RecordMatch';
-import VirtualDataEntry from './pages/VirtualDataEntry';
 import Admin from './pages/Admin';
 import Guide from './pages/Guide';
 import DataManagement from './pages/DataManagement';
 import MatchResults from './pages/MatchResults';
 import VirtualStats from './pages/VirtualStats';
 
-// 모바일 접속 시 PC 전용 페이지 접근을 제어하는 가드 컴포넌트
 function PcOnlyGuard({ children }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
@@ -38,8 +36,8 @@ function PcOnlyGuard({ children }) {
         <div style={{ fontSize: '3rem', marginBottom: '1.2rem' }}>🖥️</div>
         <h3 style={{ marginBottom: '0.8rem', fontSize: '1.25rem', fontWeight: 700 }}>PC 전용 기능 안내</h3>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.6', margin: 0 }}>
-          선수 등록, 팀 매칭 및 경기 기록 입력 등의 고성능 작업은 화면이 넓은 PC 해상도에 최적화되어 있습니다.<br/><br/>
-          원활한 조작을 위해 데스크톱 환경에서 접속해 주시기 바랍니다.
+          선수 등록, 팀 매칭 및 경기 기록 입력 등의 고정밀 작업은 화면이 넓은 PC 환경에 최적화되어 있습니다.<br/><br/>
+          원활한 조작을 위해 데스크톱 환경에서 접속해 주세요.
         </p>
       </div>
     );
@@ -48,20 +46,18 @@ function PcOnlyGuard({ children }) {
 }
 
 function App() {
-  const [token, setToken]       = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(localStorage.getItem('token'));
   const [userInfo, setUserInfo] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const navigate  = useNavigate();
-  const location  = useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  // 화면 크기 체크
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Fetch current user info whenever token changes
   useEffect(() => {
     if (!token) {
       setUserInfo(null);
@@ -76,7 +72,6 @@ function App() {
       });
   }, [token]);
 
-  // Axios response interceptor to handle token expiration (401)
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
       response => response,
@@ -108,10 +103,9 @@ function App() {
 
   return (
     <div className="app-container">
-      {/* 1. 모바일 상단 로고 헤더 (모바일 전용) */}
       {isMobile && (
         <div className="mobile-header">
-          <span className="mobile-logo" onClick={() => navigate('/')}>⚡ 호낳대 스크림</span>
+          <span className="mobile-logo" onClick={() => navigate('/')}>포성대 LoL 스크림</span>
           {token && userInfo && (
             <span className="mobile-user-badge">
               👤 {userInfo.display_name || userInfo.username}
@@ -120,12 +114,10 @@ function App() {
         </div>
       )}
 
-      {/* 2. 기존 좌측 사이드바 (데스크톱 전용) */}
       {!isMobile && (
         <div className="sidebar">
-          <h1 style={{ marginBottom: '1.5rem' }}>호낳대<br/>LoL 스크림</h1>
+          <h1 style={{ marginBottom: '1.5rem' }}>포성대<br/>LoL 스크림</h1>
 
-          {/* 인증 영역 */}
           {token ? (
             <div style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {userInfo && (
@@ -165,23 +157,21 @@ function App() {
             </Link>
           )}
 
-          {/* 데스크톱 메뉴 링크 */}
           {navLink('/', '👑 랭킹')}
           {navLink('/results', '⚔️ 내전 결과')}
           {navLink('/guide', '📖 이용 가이드')}
 
           {token && (
             <>
-              {navLink('/players',    '👥 선수 추가')}
-              {navLink('/teambuilder','⚖️ 팀 짜기 (10인)')}
-              {navLink('/record',     '⚔️ 실전 결과 기록')}
-              {navLink('/virtual',    '🧪 가상 데이터 입력')}
+              {navLink('/players', '👥 선수 추가')}
+              {navLink('/teambuilder', '⚖️ 팀 짜기 (10인)')}
+              {navLink('/record', '⚔️ 실전 결과 기록')}
               {navLink('/virtual-stats', '🎟️ 내 가상 입력 기록')}
-              
+
               {userInfo?.is_admin && (
                 <>
-                  {navLink('/admin',      '🛡️ 관리자 (가입승인)')}
-                  {navLink('/datamanage',   '🛠️ 데이터 관리')}
+                  {navLink('/admin', '🛡️ 관리자 (가입승인)')}
+                  {navLink('/datamanage', '🛠️ 데이터 관리')}
                 </>
               )}
             </>
@@ -189,7 +179,6 @@ function App() {
         </div>
       )}
 
-      {/* 3. 모바일 하단 고정 탭바 (모바일 전용) */}
       {isMobile && (
         <div className="bottom-nav">
           <Link to="/" className={`bottom-nav-item ${location.pathname === '/' ? 'active' : ''}`}>
@@ -206,39 +195,36 @@ function App() {
           </Link>
           {token ? (
             <>
-            <Link to="/virtual" className={`bottom-nav-item ${location.pathname === '/virtual' ? 'active' : ''}`}>
-              <span className="bottom-nav-icon">🧪</span>
-              <span className="bottom-nav-label">가상 입력</span>
-            </Link>
-            <div className="bottom-nav-item" onClick={handleLogout} style={{ cursor: 'pointer' }}>
-              <span className="bottom-nav-icon">🚪</span>
-              <span className="bottom-nav-label">로그아웃</span>
-            </div>
+              <Link to="/virtual-stats" className={`bottom-nav-item ${location.pathname === '/virtual-stats' ? 'active' : ''}`}>
+                <span className="bottom-nav-icon">🎟️</span>
+                <span className="bottom-nav-label">내 기록</span>
+              </Link>
+              <div className="bottom-nav-item" onClick={handleLogout} style={{ cursor: 'pointer' }}>
+                <span className="bottom-nav-icon">↩</span>
+                <span className="bottom-nav-label">로그아웃</span>
+              </div>
             </>
           ) : (
             <Link to="/login" className={`bottom-nav-item ${location.pathname === '/login' ? 'active' : ''}`}>
-              <span className="bottom-nav-icon">🔑</span>
+              <span className="bottom-nav-icon">🔐</span>
               <span className="bottom-nav-label">로그인</span>
             </Link>
           )}
         </div>
       )}
 
-      {/* 4. 메인 콘텐츠 컨테이너 */}
       <div className="main-content">
         <Routes>
-          <Route path="/"           element={<Leaderboard />} />
-          <Route path="/results"    element={<MatchResults />} />
-          <Route path="/guide"      element={<Guide />} />
-          <Route path="/login"      element={<Login setToken={setToken} />} />
-          
-          {/* PC 전용 뷰들은 모바일 접속 차단 가드(PcOnlyGuard)로 보호 */}
-          <Route path="/players"    element={<PcOnlyGuard><PlayerManagement token={token} userInfo={userInfo} /></PcOnlyGuard>} />
-          <Route path="/teambuilder"element={<PcOnlyGuard><TeamBuilder token={token} /></PcOnlyGuard>} />
-          <Route path="/record"     element={<PcOnlyGuard><RecordMatch token={token} /></PcOnlyGuard>} />
-          <Route path="/virtual"    element={<VirtualDataEntry token={token} userInfo={userInfo} />} />
+          <Route path="/" element={<Leaderboard />} />
+          <Route path="/results" element={<MatchResults />} />
+          <Route path="/guide" element={<Guide />} />
+          <Route path="/login" element={<Login setToken={setToken} />} />
+          <Route path="/players" element={<PcOnlyGuard><PlayerManagement token={token} userInfo={userInfo} /></PcOnlyGuard>} />
+          <Route path="/teambuilder" element={<PcOnlyGuard><TeamBuilder token={token} /></PcOnlyGuard>} />
+          <Route path="/record" element={<PcOnlyGuard><RecordMatch token={token} /></PcOnlyGuard>} />
+          <Route path="/virtual" element={<VirtualStats token={token} />} />
           <Route path="/virtual-stats" element={<VirtualStats token={token} />} />
-          <Route path="/admin"      element={<PcOnlyGuard>{userInfo?.is_admin ? <Admin token={token} userInfo={userInfo} /> : <Leaderboard />}</PcOnlyGuard>} />
+          <Route path="/admin" element={<PcOnlyGuard>{userInfo?.is_admin ? <Admin token={token} userInfo={userInfo} /> : <Leaderboard />}</PcOnlyGuard>} />
           <Route path="/datamanage" element={<PcOnlyGuard>{userInfo?.is_admin ? <DataManagement token={token} /> : <Leaderboard />}</PcOnlyGuard>} />
         </Routes>
       </div>

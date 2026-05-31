@@ -813,26 +813,11 @@ def get_my_coupon_image(match_id: int, db: Session = Depends(get_db), current_us
         headers={"Cache-Control": "private, no-store"},
     )
 
-@app.get("/api/admin/virtual/coupon-preview")
-def get_virtual_coupon_preview(current_user: User = Depends(get_admin_user)):
-    directory = get_coupon_directory()
-    if not directory:
-        raise HTTPException(status_code=404, detail="Coupon image storage not available")
-    coupon_images = [
-        path for path in directory.rglob("*")
-        if path.is_file() and path.suffix.lower() in COUPON_EXTENSIONS
-    ]
-    if not coupon_images:
-        raise HTTPException(status_code=404, detail="No coupon image available for preview")
-    image_path = COUPON_RANDOM.choice(coupon_images)
-    return FileResponse(
-        image_path,
-        media_type=f"image/{image_path.suffix.lower().lstrip('.')}",
-        headers={"Cache-Control": "private, no-store"},
-    )
-
 @app.post("/api/matches")
 def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current_user: User = Depends(get_approved_user)):
+    if req.is_virtual:
+        raise HTTPException(status_code=410, detail="Virtual data entry has been disabled")
+
     last_same_type_match = (
         db.query(Match)
         .filter(Match.is_virtual == req.is_virtual)

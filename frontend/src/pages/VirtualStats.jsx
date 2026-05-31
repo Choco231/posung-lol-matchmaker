@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
 
 export default function VirtualStats({ token }) {
   const [stats, setStats] = useState(null);
@@ -46,7 +45,6 @@ export default function VirtualStats({ token }) {
     <div style={{ maxWidth: '760px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.8rem' }}>
         <h2 style={{ margin: 0 }}>내 가상 데이터 기록</h2>
-        <Link to="/virtual" className="btn" style={{ textDecoration: 'none', padding: '0.55rem 0.8rem' }}>입력 화면</Link>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.75rem' }}>
