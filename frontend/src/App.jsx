@@ -8,7 +8,6 @@ import TeamBuilder from './pages/TeamBuilder';
 import RecordMatch from './pages/RecordMatch';
 import VirtualDataEntry from './pages/VirtualDataEntry';
 import Admin from './pages/Admin';
-import DBViewer from './pages/DBViewer';
 import Guide from './pages/Guide';
 import DataManagement from './pages/DataManagement';
 import MatchResults from './pages/MatchResults';

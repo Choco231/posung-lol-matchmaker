@@ -270,6 +270,24 @@ export default function RecordMatch({ token }) {
   const handleSlotClick = (team, pos) => {
     if (activeSlot?.team === team && activeSlot?.pos === pos) {
       setActiveSlot(null);
+    } else if (activeSlot) {
+      const fromTeam = activeSlot.team;
+      const fromPos = activeSlot.pos;
+      const newTeamA = { ...teamA };
+      const newTeamB = { ...teamB };
+      const fromAssign = fromTeam === 'A' ? newTeamA : newTeamB;
+      const toAssign = team === 'A' ? newTeamA : newTeamB;
+      const fromPlayerId = fromAssign[fromPos];
+      const toPlayerId = toAssign[pos];
+
+      if (fromPlayerId && !canPlay(getPlayerById(fromPlayerId), pos)) return;
+      if (toPlayerId && !canPlay(getPlayerById(toPlayerId), fromPos)) return;
+
+      fromAssign[fromPos] = toPlayerId || '';
+      toAssign[pos] = fromPlayerId || '';
+      setTeamA(newTeamA);
+      setTeamB(newTeamB);
+      setActiveSlot(null);
     } else {
       setActiveSlot({ team, pos });
     }

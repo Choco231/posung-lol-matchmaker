@@ -315,6 +315,24 @@ export default function VirtualDataEntry({ token, userInfo }) {
   const handleSlotClick = (team, pos) => {
     if (activeSlot?.team === team && activeSlot?.pos === pos) {
       setActiveSlot(null); // toggle off
+    } else if (activeSlot) {
+      const fromTeam = activeSlot.team;
+      const fromPos = activeSlot.pos;
+      const newTeamA = { ...teamA };
+      const newTeamB = { ...teamB };
+      const fromAssign = fromTeam === 'A' ? newTeamA : newTeamB;
+      const toAssign = team === 'A' ? newTeamA : newTeamB;
+      const fromPlayerId = fromAssign[fromPos];
+      const toPlayerId = toAssign[pos];
+
+      if (fromPlayerId && getWeight(getPlayerById(fromPlayerId), pos) === 0) return;
+      if (toPlayerId && getWeight(getPlayerById(toPlayerId), fromPos) === 0) return;
+
+      fromAssign[fromPos] = toPlayerId || '';
+      toAssign[pos] = fromPlayerId || '';
+      setTeamA(newTeamA);
+      setTeamB(newTeamB);
+      setActiveSlot(null);
     } else {
       setActiveSlot({ team, pos });
     }
@@ -431,7 +449,7 @@ export default function VirtualDataEntry({ token, userInfo }) {
     <div className="card" style={{ padding: isMobile ? '0.6rem' : '2rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: isMobile ? '0.35rem' : '1rem', marginBottom: '0.5rem' }}>
         <h2 style={{ margin: 0, fontSize: isMobile ? '0.92rem' : undefined }}>🧪 가상 데이터 입력 모드</h2>
-        <button disabled={inputDisabled} className="btn" onClick={handleRandomize} style={{ background: 'rgba(94,106,210,0.3)', border: '1px solid var(--accent)', opacity: inputDisabled ? 0.45 : 1, padding: isMobile ? '0.38rem 0.48rem' : undefined, fontSize: isMobile ? '0.7rem' : undefined, whiteSpace: 'nowrap' }}>
+        <button disabled={inputDisabled} className="btn" onClick={() => handleRandomize()} style={{ background: 'rgba(94,106,210,0.3)', border: '1px solid var(--accent)', opacity: inputDisabled ? 0.45 : 1, padding: isMobile ? '0.38rem 0.48rem' : undefined, fontSize: isMobile ? '0.7rem' : undefined, whiteSpace: 'nowrap' }}>
           🎲 랜덤 배치
         </button>
       </div>

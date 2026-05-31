@@ -403,6 +403,8 @@ def update_user_by_admin(user_id: int, req: UserUpdateAdmin, db: Session = Depen
 
 @app.get("/api/admin/matches")
 def get_admin_matches(page: int = 1, limit: int = 20, is_virtual: Optional[bool] = None, db: Session = Depends(get_db), current_user: User = Depends(get_admin_user)):
+    page = max(1, page)
+    limit = min(max(1, limit), 100)
     offset = (page - 1) * limit
     query = db.query(Match)
     if is_virtual is not None:
@@ -488,10 +490,10 @@ def export_matches_csv(db: Session = Depends(get_db), current_user: User = Depen
 
 # --- Admin DB Export (admin only) ---
 @app.get("/api/admin/export")
-def export_db(db: Session = Depends(get_db), current_user: User = Depends(get_admin_user)):
+def export_db(include_matches: bool = False, db: Session = Depends(get_db), current_user: User = Depends(get_admin_user)):
     users   = db.query(User).all()
     players = db.query(Player).all()
-    matches = db.query(Match).all()
+    matches = db.query(Match).all() if include_matches else []
 
     # Build player name lookup
     pid_to_name = {p.id: p.name for p in players}
@@ -541,6 +543,7 @@ def export_db(db: Session = Depends(get_db), current_user: User = Depends(get_ad
             }
             for m in matches
         ],
+        "matches_omitted": not include_matches,
     }
 
 
@@ -830,6 +833,35 @@ def get_virtual_coupon_preview(current_user: User = Depends(get_admin_user)):
 
 @app.post("/api/matches")
 def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current_user: User = Depends(get_approved_user)):
+    last_same_type_match = (
+        db.query(Match)
+        .filter(Match.is_virtual == req.is_virtual)
+        .order_by(Match.created_at.desc(), Match.id.desc())
+        .first()
+    )
+    if last_same_type_match and last_same_type_match.created_at:
+        same_blue_team = req.team_a_ids == [
+            last_same_type_match.team_a_top_id,
+            last_same_type_match.team_a_jungle_id,
+            last_same_type_match.team_a_mid_id,
+            last_same_type_match.team_a_adc_id,
+            last_same_type_match.team_a_support_id,
+        ]
+        same_red_team = req.team_b_ids == [
+            last_same_type_match.team_b_top_id,
+            last_same_type_match.team_b_jungle_id,
+            last_same_type_match.team_b_mid_id,
+            last_same_type_match.team_b_adc_id,
+            last_same_type_match.team_b_support_id,
+        ]
+        elapsed = now_kst() - last_same_type_match.created_at
+        if same_blue_team and same_red_team and timedelta(0) <= elapsed <= timedelta(seconds=10):
+            match_type_label = "가상 데이터" if req.is_virtual else "실전"
+            raise HTTPException(
+                status_code=409,
+                detail=f"직전 {match_type_label} 기록과 같은 팀 구성이 10초 이내에 다시 제출되어 중복 기록을 막았습니다.",
+            )
+
     virtual_attempt_number = None
     coupon_probability = None
     coupon_filename = None
