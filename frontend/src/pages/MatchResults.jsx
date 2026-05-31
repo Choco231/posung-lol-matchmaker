@@ -40,9 +40,15 @@ function DetailList({ title, items, color }) {
               }}
             >
               <span>{item.order ? `${item.order}. ` : ''}{item.champion || item}</span>
-              {item.position && (
-                <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                  {POSITION_LABELS[item.position] || item.position}
+              {(item.position || item.playerName) && (
+                <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap', textAlign: 'right' }}>
+                  {item.position && (POSITION_LABELS[item.position] || item.position)}
+                  {item.playerName && (
+                    <>
+                      {item.position && ' · '}
+                      {item.playerName}
+                    </>
+                  )}
                 </span>
               )}
             </div>
@@ -55,6 +61,14 @@ function DetailList({ title, items, color }) {
 
 function MatchDetailModal({ match, onClose }) {
   if (!match) return null;
+
+  const blueWon = match.winner === 'A';
+  const withPlayerNames = (items, team) => (
+    (items || []).map((item) => ({
+      ...item,
+      playerName: item.position ? team?.[item.position] : null,
+    }))
+  );
 
   return (
     <div
@@ -78,8 +92,20 @@ function MatchDetailModal({ match, onClose }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
           <div>
             <h3 style={{ margin: '0 0 0.25rem 0' }}>상세 기록</h3>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-              {match.created_at ? `${match.created_at} KST` : '시간 정보 없음'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
+              <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                {match.created_at ? `${match.created_at} KST` : '시간 정보 없음'}
+              </span>
+              <span style={{
+                padding: '0.22rem 0.55rem',
+                borderRadius: '12px',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                color: blueWon ? '#60a5fa' : '#f87171',
+                background: blueWon ? 'rgba(59,130,246,0.14)' : 'rgba(239,68,68,0.14)',
+              }}>
+                {blueWon ? 'BLUE 승리' : 'RED 승리'}
+              </span>
             </div>
           </div>
           <button className="btn" onClick={onClose} style={{ padding: '0.45rem 0.8rem' }}>
@@ -93,8 +119,8 @@ function MatchDetailModal({ match, onClose }) {
         </div>
 
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.2rem' }}>
-          <DetailList title="Blue 픽" items={match.team_a_picks || []} color="#60a5fa" />
-          <DetailList title="Red 픽" items={match.team_b_picks || []} color="#f87171" />
+          <DetailList title="Blue 픽" items={withPlayerNames(match.team_a_picks, match.team_a)} color="#60a5fa" />
+          <DetailList title="Red 픽" items={withPlayerNames(match.team_b_picks, match.team_b)} color="#f87171" />
         </div>
 
         <div>
