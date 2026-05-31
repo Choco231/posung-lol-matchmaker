@@ -702,6 +702,12 @@ def get_public_real_match_results(page: int = 1, limit: int = 20, db: Session = 
                 "id": match.id,
                 "created_at": match.created_at.strftime("%Y-%m-%d %H:%M") if match.created_at else None,
                 "winner": match.winner_team,
+                "record_mode": match.record_mode or "simple",
+                "team_a_bans": json.loads(match.team_a_bans) if match.team_a_bans else [],
+                "team_b_bans": json.loads(match.team_b_bans) if match.team_b_bans else [],
+                "fearless_bans": json.loads(match.fearless_bans) if match.fearless_bans else [],
+                "team_a_picks": json.loads(match.team_a_picks) if match.team_a_picks else [],
+                "team_b_picks": json.loads(match.team_b_picks) if match.team_b_picks else [],
                 "team_a": {
                     "top": pid_to_name.get(match.team_a_top_id, "?"),
                     "jungle": pid_to_name.get(match.team_a_jungle_id, "?"),

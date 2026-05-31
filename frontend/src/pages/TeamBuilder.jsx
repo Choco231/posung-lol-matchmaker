@@ -211,6 +211,7 @@ export default function TeamBuilder({ token }) {
 
   const getPlayerObj  = (id) => players.find(x => x.id === id);
   const getPlayerName = (id) => players.find(x => x.id === id)?.name ?? '?';
+  const getPlayerMmr = (player, pos) => player ? player[`${pos}_mu`]?.toFixed(1) : null;
 
   const sortedMatchups = [...matchups].sort((a, b) => {
     if (sortBy === 'preference') {
@@ -392,6 +393,11 @@ export default function TeamBuilder({ token }) {
                 <span title={POSITION_LABELS[i]}>{POSITION_ICONS[i]}</span>
                 <span style={{ color: 'var(--text-secondary)', minWidth: '3.8rem', fontSize: '0.75rem' }}>{POSITION_LABELS[i]}</span>
                 <span style={{ fontWeight: 600 }}>{player?.name ?? '?'}</span>
+                {player && (
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>
+                    {getPlayerMmr(player, pos)}
+                  </span>
+                )}
                 {getPreferenceLabel(player, pos)}
               </div>
             );
@@ -410,6 +416,11 @@ export default function TeamBuilder({ token }) {
                 <span title={POSITION_LABELS[i]}>{POSITION_ICONS[i]}</span>
                 <span style={{ color: 'var(--text-secondary)', minWidth: '3.8rem', fontSize: '0.75rem' }}>{POSITION_LABELS[i]}</span>
                 <span style={{ fontWeight: 600 }}>{player?.name ?? '?'}</span>
+                {player && (
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>
+                    {getPlayerMmr(player, pos)}
+                  </span>
+                )}
                 {getPreferenceLabel(player, pos)}
               </div>
             );

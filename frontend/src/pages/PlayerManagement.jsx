@@ -162,6 +162,28 @@ export default function PlayerManagement({ token, userInfo }) {
     }
   };
 
+  const normalizeLolId = (val) => {
+    if (!val) return "";
+    return val.replace(/\s+/g, "").toLowerCase();
+  };
+
+  const getPlayerLolId = (player) => {
+    const nameParts = player.name.split(" / ");
+    return nameParts[1] || "";
+  };
+
+  const isCurrentUserPlayer = (player) => {
+    return userInfo?.lol_id && normalizeLolId(getPlayerLolId(player)) === normalizeLolId(userInfo.lol_id);
+  };
+
+  const listedPlayers = [...players].sort((a, b) => {
+    const aIsMe = isCurrentUserPlayer(a);
+    const bIsMe = isCurrentUserPlayer(b);
+    if (aIsMe !== bIsMe) return aIsMe ? -1 : 1;
+    if (a.is_guest !== b.is_guest) return a.is_guest ? -1 : 1;
+    return a.id - b.id;
+  });
+
   return (
     <div style={{display: 'flex', gap: '2rem'}}>
       <div className="card" style={{flex: 1}}>
@@ -284,7 +306,7 @@ export default function PlayerManagement({ token, userInfo }) {
       <div className="card" style={{flex: 1}}>
         <h2>목록 ({players.length}명)</h2>
         <div style={{maxHeight: '500px', overflowY: 'auto'}}>
-          {players.map(p => {
+          {listedPlayers.map(p => {
             const imp = JSON.parse(p.impossible_positions || '[]');
             const pref = JSON.parse(p.preferred_positions || '[]');
             const npref = JSON.parse(p.non_preferred_positions || '[]');
