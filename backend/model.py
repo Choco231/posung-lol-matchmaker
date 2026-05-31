@@ -3,10 +3,14 @@ import itertools
 import json
 
 # Setup default TrueSkill environment (50.0 scale).
-# Default tau is used for virtual data entry. Real match records can override it.
-env = trueskill.TrueSkill(mu=50.0, sigma=16.666, beta=8.333, tau=1.0, draw_probability=0.0)
+INITIAL_SIGMA = 40.0
+REAL_MATCH_TAU = 10.0
+SETTLED_SIGMA = 9.0
+SIGMA_SETTLE_MATCHES = 15
+REAL_MATCH_SIGMA_DECAY = (INITIAL_SIGMA - SETTLED_SIGMA) / SIGMA_SETTLE_MATCHES
+
+env = trueskill.TrueSkill(mu=50.0, sigma=INITIAL_SIGMA, beta=8.333, tau=REAL_MATCH_TAU, draw_probability=0.0)
 env.make_as_global()
-SETTLED_SIGMA = 8.25
 
 def update_ratings(team_a_ratings, team_b_ratings, team_a_won: bool, tau: float = None):
     """

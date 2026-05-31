@@ -19,7 +19,7 @@ from auth import (
     get_password_hash, verify_password, create_access_token,
     get_current_user, get_approved_user, get_admin_user
 )
-from model import SETTLED_SIGMA, update_ratings, find_best_matchups
+from model import REAL_MATCH_SIGMA_DECAY, REAL_MATCH_TAU, SETTLED_SIGMA, update_ratings, find_best_matchups
 
 app = FastAPI(title="LoL Tournament API")
 
@@ -881,17 +881,20 @@ def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current
     # 변화량을 측정하기 위해 이전 MMR(mu) 백업
     team_a_prev_mus = [getattr(p, f"{positions[i]}_mu") for i, p in enumerate(team_a_players)]
     team_b_prev_mus = [getattr(p, f"{positions[i]}_mu") for i, p in enumerate(team_b_players)]
+    team_a_prev_sigmas = [getattr(p, f"{positions[i]}_sigma") for i, p in enumerate(team_a_players)]
+    team_b_prev_sigmas = [getattr(p, f"{positions[i]}_sigma") for i, p in enumerate(team_b_players)]
 
     team_a_won = req.winner == "A"
-    rating_tau = 1.0 if req.is_virtual else 1.6
+    rating_tau = REAL_MATCH_TAU
     new_team_a, new_team_b = update_ratings(team_a_ratings, team_b_ratings, team_a_won, tau=rating_tau)
 
     mmr_changes = []
 
     for i, p in enumerate(team_a_players):
         pos = positions[i]
+        capped_sigma = min(new_team_a[i].sigma, max(SETTLED_SIGMA, team_a_prev_sigmas[i] - REAL_MATCH_SIGMA_DECAY))
         setattr(p, f"{pos}_mu",    new_team_a[i].mu)
-        setattr(p, f"{pos}_sigma", new_team_a[i].sigma)
+        setattr(p, f"{pos}_sigma", capped_sigma)
         mmr_changes.append({
             "team": "A",
             "player_name": p.name,
@@ -903,8 +906,9 @@ def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current
 
     for i, p in enumerate(team_b_players):
         pos = positions[i]
+        capped_sigma = min(new_team_b[i].sigma, max(SETTLED_SIGMA, team_b_prev_sigmas[i] - REAL_MATCH_SIGMA_DECAY))
         setattr(p, f"{pos}_mu",    new_team_b[i].mu)
-        setattr(p, f"{pos}_sigma", new_team_b[i].sigma)
+        setattr(p, f"{pos}_sigma", capped_sigma)
         mmr_changes.append({
             "team": "B",
             "player_name": p.name,
