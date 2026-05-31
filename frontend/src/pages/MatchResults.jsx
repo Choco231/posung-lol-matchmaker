@@ -127,25 +127,28 @@ function MatchDetailModal({ match, onClose }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
           <div>
             <h3 style={{ margin: '0 0 0.25rem 0' }}>상세 기록</h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
-              <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                {match.created_at ? `${match.created_at} KST` : '시간 정보 없음'}
-              </span>
-              <span style={{
-                padding: '0.22rem 0.55rem',
-                borderRadius: '12px',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                color: blueWon ? '#60a5fa' : '#f87171',
-                background: blueWon ? 'rgba(59,130,246,0.14)' : 'rgba(239,68,68,0.14)',
-              }}>
-                {blueWon ? 'BLUE 승리' : 'RED 승리'}
-              </span>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+              {match.created_at ? `${match.created_at} KST` : '시간 정보 없음'}
             </div>
           </div>
           <button className="btn" onClick={onClose} style={{ padding: '0.45rem 0.8rem' }}>
             닫기
           </button>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'center', margin: '0.2rem 0 1.25rem' }}>
+          <span style={{
+            padding: '0.5rem 1.4rem',
+            borderRadius: '18px',
+            fontSize: '1.25rem',
+            fontWeight: 800,
+            letterSpacing: '0.02em',
+            color: blueWon ? '#60a5fa' : '#f87171',
+            background: blueWon ? 'rgba(59,130,246,0.16)' : 'rgba(239,68,68,0.16)',
+            border: `1px solid ${blueWon ? 'rgba(96,165,250,0.45)' : 'rgba(248,113,113,0.45)'}`,
+          }}>
+            {blueWon ? 'BLUE 승리' : 'RED 승리'}
+          </span>
         </div>
 
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.2rem' }}>
