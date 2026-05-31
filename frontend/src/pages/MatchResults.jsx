@@ -124,19 +124,13 @@ function MatchDetailModal({ match, onClose }) {
         style={{ width: 'min(920px, 100%)', maxHeight: '88vh', overflowY: 'auto', padding: '1.4rem' }}
         onClick={(event) => event.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
           <div>
             <h3 style={{ margin: '0 0 0.25rem 0' }}>상세 기록</h3>
             <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
               {match.created_at ? `${match.created_at} KST` : '시간 정보 없음'}
             </div>
           </div>
-          <button className="btn" onClick={onClose} style={{ padding: '0.45rem 0.8rem' }}>
-            닫기
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'center', margin: '0.2rem 0 1.25rem' }}>
           <span style={{
             padding: '0.5rem 1.4rem',
             borderRadius: '18px',
@@ -149,6 +143,11 @@ function MatchDetailModal({ match, onClose }) {
           }}>
             {blueWon ? 'BLUE 승리' : 'RED 승리'}
           </span>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button className="btn" onClick={onClose} style={{ padding: '0.45rem 0.8rem' }}>
+              닫기
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.2rem' }}>
