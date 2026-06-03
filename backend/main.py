@@ -846,11 +846,11 @@ def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current
             last_same_type_match.team_b_support_id,
         ]
         elapsed = now_kst() - last_same_type_match.created_at
-        if same_blue_team and same_red_team and timedelta(0) <= elapsed <= timedelta(seconds=10):
+        if same_blue_team and same_red_team and timedelta(0) <= elapsed <= timedelta(minutes=2):
             match_type_label = "가상 데이터" if req.is_virtual else "실전"
             raise HTTPException(
                 status_code=409,
-                detail=f"직전 {match_type_label} 기록과 같은 팀 구성이 10초 이내에 다시 제출되어 중복 기록을 막았습니다.",
+                detail=f"직전 {match_type_label} 기록과 같은 팀 구성이 2분 이내에 다시 제출되어 중복 기록을 막았습니다.",
             )
 
     virtual_attempt_number = None
