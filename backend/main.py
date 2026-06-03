@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect as sa_inspect, text
 from fastapi.security import OAuth2PasswordRequestForm
@@ -9,10 +9,7 @@ from datetime import timedelta
 import json
 import trueskill
 import csv
-import random
-import shutil
 from io import BytesIO, StringIO
-from pathlib import Path
 
 from database import get_db, engine, SessionLocal, User, Player, Match, now_kst
 from auth import (
@@ -22,84 +19,6 @@ from auth import (
 from model import REAL_MATCH_SIGMA_DECAY, REAL_MATCH_TAU, SETTLED_SIGMA, update_ratings, find_best_matchups
 
 app = FastAPI(title="LoL Tournament API")
-
-VIRTUAL_DAILY_LIMIT = 50
-COUPON_P_MIN = 0.001016354020111
-COUPON_AMPLITUDE = 0.006511588765629
-COUPON_LATE_PROBABILITY = 0.010163540201109
-COUPON_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
-COUPON_RANDOM = random.SystemRandom()
-COUPON_DIRECTORIES = (
-    Path("/coupon"),
-    Path(__file__).resolve().parent.parent / "frontend" / "coupon",
-)
-
-def virtual_coupon_probability(attempt_number: int) -> float:
-    if attempt_number >= 31:
-        return COUPON_LATE_PROBABILITY
-    shape = ((attempt_number - 1) / 29) ** 2
-    return COUPON_P_MIN + COUPON_AMPLITUDE * shape
-
-def get_coupon_directory() -> Optional[Path]:
-    for directory in COUPON_DIRECTORIES:
-        if directory.exists() and directory.is_dir():
-            return directory
-    return None
-
-def get_available_coupon_filenames(db: Session) -> List[str]:
-    directory = get_coupon_directory()
-    if not directory:
-        return []
-    awarded = {
-        Path(filename).name for (filename,) in db.query(Match.coupon_filename)
-        .filter(Match.coupon_filename.isnot(None)).all()
-    }
-    return sorted(
-        path.name for path in directory.iterdir()
-        if path.is_file() and path.suffix.lower() in COUPON_EXTENSIONS and path.name not in awarded
-    )
-
-def move_coupon_to_awarded_folder(filename: str) -> Optional[str]:
-    directory = get_coupon_directory()
-    if not directory:
-        return None
-    source = directory / Path(filename).name
-    if not source.exists() or source.suffix.lower() not in COUPON_EXTENSIONS:
-        return None
-    awarded_dir = directory / "won"
-    awarded_dir.mkdir(exist_ok=True)
-    target = awarded_dir / source.name
-    if not target.exists():
-        shutil.move(str(source), str(target))
-    return f"won/{source.name}"
-
-def migrate_awarded_coupon_files(db: Session):
-    matches = db.query(Match).filter(Match.coupon_filename.isnot(None)).all()
-    changed = False
-    for match in matches:
-        if Path(match.coupon_filename).parent.name == "won":
-            continue
-        moved_filename = move_coupon_to_awarded_folder(match.coupon_filename)
-        if moved_filename:
-            match.coupon_filename = moved_filename
-            changed = True
-    if changed:
-        db.commit()
-
-def get_virtual_matches_for_user(db: Session, username: str):
-    return db.query(Match).filter(
-        Match.is_virtual == True,
-        Match.recorded_by_name == username,
-    )
-
-def today_virtual_count(db: Session, username: str) -> int:
-    start = now_kst().replace(hour=0, minute=0, second=0, microsecond=0)
-    end = start + timedelta(days=1)
-    return get_virtual_matches_for_user(db, username).filter(
-        Match.created_at >= start,
-        Match.created_at < end,
-    ).count()
-
 
 # ── Startup: column migration + admin seed ─────────────────────────────────
 @app.on_event("startup")
@@ -150,16 +69,6 @@ def startup():
         if "team_b_picks" not in match_cols:
             conn.execute(text("ALTER TABLE matches ADD COLUMN team_b_picks VARCHAR DEFAULT '[]'"))
             conn.commit()
-        if "virtual_attempt_number" not in match_cols:
-            conn.execute(text("ALTER TABLE matches ADD COLUMN virtual_attempt_number INTEGER"))
-            conn.commit()
-        if "coupon_probability" not in match_cols:
-            conn.execute(text("ALTER TABLE matches ADD COLUMN coupon_probability FLOAT"))
-            conn.commit()
-        if "coupon_filename" not in match_cols:
-            conn.execute(text("ALTER TABLE matches ADD COLUMN coupon_filename VARCHAR"))
-            conn.commit()
-
         # Existing match timestamps were stored as naive UTC values. Convert them to naive KST once.
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS app_metadata (
@@ -216,7 +125,6 @@ def startup():
         if migrated:
             db.commit()
             print("Successfully migrated all players' MMR scale from 1500.0 back to 50.0!")
-        migrate_awarded_coupon_files(db)
     finally:
         db.close()
 
@@ -268,7 +176,6 @@ class RecordMatchRequest(BaseModel):
     team_a_ids: List[int]  # [top, jgl, mid, adc, sup]
     team_b_ids: List[int]  # [top, jgl, mid, adc, sup]
     winner: str            # "A" or "B"
-    is_virtual: bool = False
     record_mode: str = "simple"  # "simple" or "detailed"
     team_a_bans: List[dict] = []  # [{"order": 1, "champion": "아리"}, ...]
     team_b_bans: List[dict] = []  
@@ -402,13 +309,11 @@ def update_user_by_admin(user_id: int, req: UserUpdateAdmin, db: Session = Depen
     return {"message": "User info updated successfully"}
 
 @app.get("/api/admin/matches")
-def get_admin_matches(page: int = 1, limit: int = 20, is_virtual: Optional[bool] = None, db: Session = Depends(get_db), current_user: User = Depends(get_admin_user)):
+def get_admin_matches(page: int = 1, limit: int = 20, db: Session = Depends(get_db), current_user: User = Depends(get_admin_user)):
     page = max(1, page)
     limit = min(max(1, limit), 100)
     offset = (page - 1) * limit
-    query = db.query(Match)
-    if is_virtual is not None:
-        query = query.filter(Match.is_virtual == is_virtual)
+    query = db.query(Match).filter(Match.is_virtual == False)
     total = query.count()
     matches = query.order_by(Match.id.desc()).offset(offset).limit(limit).all()
     players = db.query(Player).all()
@@ -418,7 +323,6 @@ def get_admin_matches(page: int = 1, limit: int = 20, is_virtual: Optional[bool]
         {
             "id": m.id,
             "created_at": m.created_at.strftime("%Y-%m-%d %H:%M") if m.created_at else None,
-            "is_virtual": m.is_virtual,
             "winner": m.winner_team,
             "recorded_by": m.recorded_by_name or "알 수 없음",
             "team_a": {
@@ -523,7 +427,6 @@ def export_db(include_matches: bool = False, db: Session = Depends(get_db), curr
             {
                 "id": m.id,
                 "created_at": m.created_at.strftime("%Y-%m-%d %H:%M") if m.created_at else None,
-                "is_virtual": m.is_virtual,
                 "winner": m.winner_team,
                 "recorded_by": m.recorded_by_name or "알 수 없음",
                 "team_a": {
@@ -759,74 +662,11 @@ def get_recent_real_match_participants(db: Session = Depends(get_db), current_us
         "created_at": match.created_at.isoformat() if match.created_at else None,
     }
 
-@app.get("/api/virtual/stats")
-def get_my_virtual_stats(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    matches = (
-        get_virtual_matches_for_user(db, current_user.username)
-        .order_by(Match.created_at.desc(), Match.id.desc())
-        .all()
-    )
-    daily_counts = {}
-    awards = []
-    for match in matches:
-        date_key = match.created_at.strftime("%Y-%m-%d") if match.created_at else "unknown"
-        daily_counts[date_key] = daily_counts.get(date_key, 0) + 1
-        if match.coupon_filename:
-            awards.append({
-                "match_id": match.id,
-                "created_at": match.created_at.strftime("%Y-%m-%d %H:%M") if match.created_at else None,
-                "attempt_number": match.virtual_attempt_number,
-                "coupon_url": f"/api/virtual/coupons/{match.id}",
-            })
-
-    today_key = now_kst().strftime("%Y-%m-%d")
-    today_count = daily_counts.get(today_key, 0)
-    return {
-        "today": today_key,
-        "today_count": today_count,
-        "daily_limit": VIRTUAL_DAILY_LIMIT,
-        "remaining_today": max(VIRTUAL_DAILY_LIMIT - today_count, 0),
-        "total_count": len(matches),
-        "daily_counts": [
-            {"date": date, "count": count}
-            for date, count in sorted(daily_counts.items(), reverse=True)
-        ],
-        "awards": awards,
-    }
-
-@app.get("/api/virtual/coupons/{match_id}")
-def get_my_coupon_image(match_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    match = db.query(Match).filter(
-        Match.id == match_id,
-        Match.is_virtual == True,
-        Match.recorded_by_name == current_user.username,
-    ).first()
-    if not match or not match.coupon_filename:
-        raise HTTPException(status_code=404, detail="Coupon not found")
-
-    directory = get_coupon_directory()
-    if not directory:
-        raise HTTPException(status_code=404, detail="Coupon image storage not available")
-    coupon_relative_path = Path(match.coupon_filename)
-    if coupon_relative_path.is_absolute() or ".." in coupon_relative_path.parts:
-        raise HTTPException(status_code=404, detail="Coupon image not found")
-    image_path = directory / coupon_relative_path
-    if not image_path.exists() or image_path.suffix.lower() not in COUPON_EXTENSIONS:
-        raise HTTPException(status_code=404, detail="Coupon image not found")
-    return FileResponse(
-        image_path,
-        media_type=f"image/{image_path.suffix.lower().lstrip('.')}",
-        headers={"Cache-Control": "private, no-store"},
-    )
-
 @app.post("/api/matches")
 def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current_user: User = Depends(get_approved_user)):
-    if req.is_virtual:
-        raise HTTPException(status_code=410, detail="Virtual data entry has been disabled")
-
     last_same_type_match = (
         db.query(Match)
-        .filter(Match.is_virtual == req.is_virtual)
+        .filter(Match.is_virtual == False)
         .order_by(Match.created_at.desc(), Match.id.desc())
         .first()
     )
@@ -847,25 +687,10 @@ def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current
         ]
         elapsed = now_kst() - last_same_type_match.created_at
         if same_blue_team and same_red_team and timedelta(0) <= elapsed <= timedelta(minutes=2):
-            match_type_label = "가상 데이터" if req.is_virtual else "실전"
             raise HTTPException(
                 status_code=409,
-                detail=f"직전 {match_type_label} 기록과 같은 팀 구성이 2분 이내에 다시 제출되어 중복 기록을 막았습니다.",
+                detail="직전 실전 기록과 같은 팀 구성이 2분 이내에 다시 제출되어 중복 기록을 막았습니다.",
             )
-
-    virtual_attempt_number = None
-    coupon_probability = None
-    coupon_filename = None
-    selected_coupon_filename = None
-    if req.is_virtual:
-        used_today = today_virtual_count(db, current_user.username)
-        if used_today >= VIRTUAL_DAILY_LIMIT:
-            raise HTTPException(status_code=429, detail="오늘의 가상 데이터 입력 한도 50건을 모두 사용했습니다.")
-        virtual_attempt_number = used_today + 1
-        coupon_probability = virtual_coupon_probability(virtual_attempt_number)
-        available_coupons = get_available_coupon_filenames(db)
-        if available_coupons and COUPON_RANDOM.random() < coupon_probability:
-            selected_coupon_filename = COUPON_RANDOM.choice(available_coupons)
 
     positions = ["top", "jungle", "mid", "adc", "support"]
     team_a_players = [db.query(Player).filter(Player.id == pid).first() for pid in req.team_a_ids]
@@ -924,16 +749,10 @@ def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current
             "diff": new_team_b[i].mu - team_b_prev_mus[i]
         })
 
-    if selected_coupon_filename:
-        coupon_filename = move_coupon_to_awarded_folder(selected_coupon_filename)
-
     match = Match(
-        is_virtual=req.is_virtual,
+        is_virtual=False,
         winner_team=req.winner,
         recorded_by_name=current_user.username,
-        virtual_attempt_number=virtual_attempt_number,
-        coupon_probability=coupon_probability,
-        coupon_filename=coupon_filename,
         team_a_top_id=req.team_a_ids[0],
         team_a_jungle_id=req.team_a_ids[1],
         team_a_mid_id=req.team_a_ids[2],
@@ -957,12 +776,4 @@ def record_match(req: RecordMatchRequest, db: Session = Depends(get_db), current
     return {
         "message": "Match recorded and ratings updated",
         "mmr_changes": mmr_changes,
-        "virtual_reward": {
-            "today_count": virtual_attempt_number,
-            "daily_limit": VIRTUAL_DAILY_LIMIT,
-            "remaining_today": VIRTUAL_DAILY_LIMIT - virtual_attempt_number,
-            "probability": coupon_probability,
-            "won": coupon_filename is not None,
-            "coupon_match_id": match.id if coupon_filename else None,
-        } if req.is_virtual else None,
     }

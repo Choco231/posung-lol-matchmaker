@@ -202,7 +202,6 @@ export default function RecordMatch({ token }) {
       team_a_ids: aIds.map(Number),
       team_b_ids: bIds.map(Number),
       winner,
-      is_virtual: false,
       record_mode: recordMode,
     };
 

@@ -10,7 +10,6 @@ import Admin from './pages/Admin';
 import Guide from './pages/Guide';
 import DataManagement from './pages/DataManagement';
 import MatchResults from './pages/MatchResults';
-import VirtualStats from './pages/VirtualStats';
 
 function PcOnlyGuard({ children }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -166,7 +165,6 @@ function App() {
               {navLink('/players', '👥 선수 추가')}
               {navLink('/teambuilder', '⚖️ 팀 짜기 (10인)')}
               {navLink('/record', '⚔️ 실전 결과 기록')}
-              {navLink('/virtual-stats', '🎟️ 내 가상 입력 기록')}
 
               {userInfo?.is_admin && (
                 <>
@@ -195,10 +193,6 @@ function App() {
           </Link>
           {token ? (
             <>
-              <Link to="/virtual-stats" className={`bottom-nav-item ${location.pathname === '/virtual-stats' ? 'active' : ''}`}>
-                <span className="bottom-nav-icon">🎟️</span>
-                <span className="bottom-nav-label">내 기록</span>
-              </Link>
               <div className="bottom-nav-item" onClick={handleLogout} style={{ cursor: 'pointer' }}>
                 <span className="bottom-nav-icon">↩</span>
                 <span className="bottom-nav-label">로그아웃</span>
@@ -222,8 +216,6 @@ function App() {
           <Route path="/players" element={<PcOnlyGuard><PlayerManagement token={token} userInfo={userInfo} /></PcOnlyGuard>} />
           <Route path="/teambuilder" element={<PcOnlyGuard><TeamBuilder token={token} /></PcOnlyGuard>} />
           <Route path="/record" element={<PcOnlyGuard><RecordMatch token={token} /></PcOnlyGuard>} />
-          <Route path="/virtual" element={<VirtualStats token={token} />} />
-          <Route path="/virtual-stats" element={<VirtualStats token={token} />} />
           <Route path="/admin" element={<PcOnlyGuard>{userInfo?.is_admin ? <Admin token={token} userInfo={userInfo} /> : <Leaderboard />}</PcOnlyGuard>} />
           <Route path="/datamanage" element={<PcOnlyGuard>{userInfo?.is_admin ? <DataManagement token={token} /> : <Leaderboard />}</PcOnlyGuard>} />
         </Routes>

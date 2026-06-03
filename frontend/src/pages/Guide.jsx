@@ -17,7 +17,7 @@ export default function Guide() {
       title: '내전 결과',
       desc: '기록된 실전 경기 결과를 최신순으로 확인하는 공개 화면입니다.',
       details: [
-        '가상 데이터는 포함하지 않고 실제 경기 결과만 표시합니다.',
+        '실제 경기 결과만 표시합니다.',
         'Blue/Red 팀의 라인별 참가자와 승리 팀을 확인할 수 있습니다.',
         '기록자 정보는 공개 결과 화면에 노출하지 않습니다.',
       ],
@@ -58,21 +58,11 @@ export default function Guide() {
       badge: '로그인 사용자',
     },
     {
-      title: '가상 입력 기록',
-      desc: '기존에 저장된 본인의 가상 입력 기록과 쿠폰 내역을 확인합니다.',
-      details: [
-        '가상 데이터 입력 기능은 제거되었지만 기존 기록은 보존됩니다.',
-        '본인이 받은 쿠폰 이미지는 기록 화면에서 다시 확인할 수 있습니다.',
-      ],
-      icon: '🎟️',
-      badge: '로그인 사용자',
-    },
-    {
       title: '관리자',
       desc: '가입 승인, 권한 변경, 사용자 표시 정보 수정을 처리합니다.',
       details: [
         '승인된 사용자만 선수 등록과 경기 기록 기능을 사용할 수 있습니다.',
-        '데이터 관리 화면에서는 사용자 정보만 관리하며, 가상 데이터 기록 조회는 제거되었습니다.',
+        '데이터 관리 화면에서는 사용자 정보를 관리합니다.',
       ],
       icon: '🛠️',
       badge: '관리자 전용',
@@ -82,7 +72,7 @@ export default function Guide() {
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto', padding: '1rem' }}>
       <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-        <h2 style={{ fontSize: '2rem', margin: '0 0 0.5rem 0' }}>포성 LoL 스크림 이용 가이드</h2>
+        <h2 style={{ fontSize: '2rem', margin: '0 0 0.5rem 0' }}>호령회 LOL 스크림 이용 가이드</h2>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
           주요 화면의 목적과 사용 흐름을 정리했습니다.
         </p>
