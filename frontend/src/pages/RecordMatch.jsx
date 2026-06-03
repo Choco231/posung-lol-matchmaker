@@ -121,6 +121,7 @@ export default function RecordMatch({ token }) {
   const [teamB, setTeamB] = useState({ top: '', jungle: '', mid: '', adc: '', support: '' });
   const [activeSlot, setActiveSlot] = useState(null);
   const [mmrModalData, setMmrModalData] = useState(null);
+  const [recordingWinner, setRecordingWinner] = useState(null);
 
   // 모드 탭: 'simple' | 'detailed'
   const [recordMode, setRecordMode] = useState('simple');
@@ -190,6 +191,8 @@ export default function RecordMatch({ token }) {
   };
 
   const handleSubmit = async (winner) => {
+    if (recordingWinner) return;
+
     const aIds = POSITIONS.map(p => teamA[p]);
     const bIds = POSITIONS.map(p => teamB[p]);
 
@@ -230,10 +233,12 @@ export default function RecordMatch({ token }) {
     }
 
     try {
+      setRecordingWinner(winner);
       const res = await axios.post('/api/matches', payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
+      setRecordingWinner(null);
       if (res.data && res.data.mmr_changes) {
         setMmrModalData({ winner, changes: res.data.mmr_changes });
       } else {
@@ -256,6 +261,7 @@ export default function RecordMatch({ token }) {
 
       setActiveSlot(null);
     } catch (err) {
+      setRecordingWinner(null);
       alert('오류 발생: ' + (err.response?.data?.detail || err.message));
     }
   };
@@ -506,7 +512,7 @@ export default function RecordMatch({ token }) {
               </div>
             );
           })}
-          <button className="btn" style={{ width: '100%', background: '#3b82f6', marginTop: '1rem' }} onClick={() => handleSubmit('A')}>
+          <button className="btn" disabled={!!recordingWinner} style={{ width: '100%', background: '#3b82f6', marginTop: '1rem' }} onClick={() => handleSubmit('A')}>
             🔵 A팀(블루) 승리
           </button>
         </div>
@@ -528,7 +534,7 @@ export default function RecordMatch({ token }) {
               </div>
             );
           })}
-          <button className="btn" style={{ width: '100%', background: '#ef4444', marginTop: '1rem' }} onClick={() => handleSubmit('B')}>
+          <button className="btn" disabled={!!recordingWinner} style={{ width: '100%', background: '#ef4444', marginTop: '1rem' }} onClick={() => handleSubmit('B')}>
             🔴 B팀(레드) 승리
           </button>
         </div>
@@ -642,6 +648,41 @@ export default function RecordMatch({ token }) {
         excludeChampions={champModal.excludes}
         title={champModal.title}
       />
+
+      {/* 기록 중 모달 */}
+      {recordingWinner && (
+        <>
+          <div
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.72)', backdropFilter: 'blur(4px)', zIndex: 10001
+            }}
+          />
+          <div
+            style={{
+              position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+              width: '92%', maxWidth: '420px', backgroundColor: '#1f2937',
+              border: '1px solid #374151', borderRadius: '16px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', padding: '2rem',
+              zIndex: 10002, color: '#f9fafb', textAlign: 'center'
+            }}
+          >
+            <div
+              style={{
+                width: '52px', height: '52px', borderRadius: '50%', margin: '0 auto 1.2rem',
+                border: '4px solid rgba(255,255,255,0.16)',
+                borderTopColor: recordingWinner === 'A' ? '#60a5fa' : '#f87171',
+                animation: 'record-spin 0.9s linear infinite'
+              }}
+            />
+            <style>{`@keyframes record-spin { to { transform: rotate(360deg); } }`}</style>
+            <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem' }}>실전 결과 기록 중</h3>
+            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5 }}>
+              {recordingWinner === 'A' ? 'Blue Team' : 'Red Team'} 승리를 저장하고 MMR을 계산하고 있습니다.
+            </p>
+          </div>
+        </>
+      )}
 
       {/* MMR 변동 상세 커스텀 모달 */}
       {mmrModalData && (
