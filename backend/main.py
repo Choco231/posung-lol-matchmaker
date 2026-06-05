@@ -10,6 +10,7 @@ import json
 import trueskill
 import csv
 import asyncio
+import random
 from io import BytesIO, StringIO
 
 from database import get_db, engine, SessionLocal, User, Player, Match, now_kst
@@ -714,6 +715,11 @@ def matchmake(req: MatchmakeRequest, db: Session = Depends(get_db)):
     matchups = find_best_matchups(players, pinned_positions=req.pinned_positions, top_n=100)
     if not matchups:
         raise HTTPException(status_code=400, detail="Could not find a valid matchup with given impossible positions")
+
+    for matchup in matchups:
+        if random.choice([True, False]):
+            matchup["team_a"], matchup["team_b"] = matchup["team_b"], matchup["team_a"]
+            matchup["mmr_a"], matchup["mmr_b"] = matchup["mmr_b"], matchup["mmr_a"]
 
     return {"matchups": matchups, "total": len(matchups)}
 
