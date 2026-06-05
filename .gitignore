@@ -21,6 +21,7 @@ node_modules/
 dist/
 .eslintcache
 frontend/coupon/
+cloudflared-runtime.log
 overlay/node_modules/
 overlay/.overlay-user-data/
 overlay/overlay-debug.log
