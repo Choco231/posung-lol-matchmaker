@@ -3,13 +3,14 @@ const fs = require("node:fs");
 const { app, BrowserWindow, globalShortcut, ipcMain, screen } = require("electron");
 
 let mainWindow;
+let loginWindow;
 const logPath = path.join(__dirname, "overlay-debug.log");
 const userDataPath = path.join(__dirname, ".overlay-user-data");
 const syncConfigPath = path.join(__dirname, "overlay-config.json");
 const DEFAULT_WIDTH = 140;
 const DEFAULT_HEIGHT = 272;
-const LOGIN_WIDTH = 260;
-const LOGIN_HEIGHT = 330;
+const LOGIN_WIDTH = 360;
+const LOGIN_HEIGHT = 360;
 const DEFAULT_SERVER_URL = "https://posung-lol-match.win";
 
 fs.mkdirSync(userDataPath, { recursive: true });
@@ -60,6 +61,40 @@ function createWindow() {
   mainWindow.loadFile("index.html").then(() => log("index loaded")).catch(error => log(`load failed: ${error.stack}`));
 }
 
+function createLoginWindow(serverUrl = DEFAULT_SERVER_URL, message = "") {
+  if (loginWindow) {
+    loginWindow.focus();
+    loginWindow.webContents.send("login:set-message", message);
+    return;
+  }
+
+  loginWindow = new BrowserWindow({
+    width: LOGIN_WIDTH,
+    height: LOGIN_HEIGHT,
+    parent: mainWindow || undefined,
+    modal: false,
+    frame: false,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    alwaysOnTop: true,
+    backgroundColor: "#101722",
+    webPreferences: {
+      preload: path.join(__dirname, "login-preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  });
+
+  loginWindow.on("closed", () => {
+    loginWindow = null;
+  });
+
+  const query = new URLSearchParams({ serverUrl, message }).toString();
+  loginWindow.loadFile("login.html", { query }).catch(error => log(`login load failed: ${error.stack}`));
+}
+
 app.whenReady().then(() => {
   log("app ready");
   createWindow();
@@ -107,13 +142,8 @@ ipcMain.handle("overlay:reset-window", () => {
   mainWindow.center();
 });
 
-ipcMain.handle("overlay:set-login-mode", (_event, enabled) => {
-  if (!mainWindow) return;
-  if (enabled) {
-    mainWindow.setSize(LOGIN_WIDTH, LOGIN_HEIGHT);
-  } else {
-    mainWindow.setSize(DEFAULT_WIDTH, DEFAULT_HEIGHT);
-  }
+ipcMain.handle("overlay:open-login-window", (_event, payload) => {
+  createLoginWindow(payload?.serverUrl || DEFAULT_SERVER_URL, payload?.message || "");
 });
 
 ipcMain.handle("overlay:get-sync-config", () => {
@@ -146,4 +176,21 @@ ipcMain.handle("overlay:save-sync-config", (_event, config) => {
     log(`sync config write failed: ${error.stack || error}`);
     return { ok: false, error: String(error?.message || error) };
   }
+});
+
+ipcMain.handle("login:success", (_event, payload) => {
+  const serverUrl = String(payload?.serverUrl || DEFAULT_SERVER_URL).replace(/\/+$/, "");
+  const token = String(payload?.token || "");
+  try {
+    fs.writeFileSync(syncConfigPath, `${JSON.stringify({ enabled: true, serverUrl, token: "" }, null, 2)}\n`, "utf8");
+  } catch (error) {
+    log(`sync server url save failed: ${error.stack || error}`);
+  }
+  mainWindow?.webContents.send("overlay:login-success", { serverUrl, token });
+  loginWindow?.close();
+});
+
+ipcMain.handle("login:cancel", () => {
+  loginWindow?.close();
+  mainWindow?.close();
 });

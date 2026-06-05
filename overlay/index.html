@@ -738,26 +738,6 @@
     </div>
   </div>
 
-  <div class="modal" id="loginModal" aria-hidden="true">
-    <form class="dialog login-dialog" id="loginForm">
-      <h2>Overlay Login</h2>
-      <label>
-        Server
-        <input id="loginServer" type="url" autocomplete="off" spellcheck="false" required>
-      </label>
-      <label>
-        ID
-        <input id="loginUsername" type="text" autocomplete="username" required>
-      </label>
-      <label>
-        Password
-        <input id="loginPassword" type="password" autocomplete="current-password" required>
-      </label>
-      <button id="loginSubmit" type="submit">Login</button>
-      <div class="login-help" id="loginHelp">Admin account can control timers. Normal accounts are view only.</div>
-    </form>
-  </div>
-
   <div class="toast" id="toast"></div>
 
   <script>
@@ -818,13 +798,6 @@
 
     const board = document.querySelector("#board");
     const modal = document.querySelector("#modal");
-    const loginModal = document.querySelector("#loginModal");
-    const loginForm = document.querySelector("#loginForm");
-    const loginServer = document.querySelector("#loginServer");
-    const loginUsername = document.querySelector("#loginUsername");
-    const loginPassword = document.querySelector("#loginPassword");
-    const loginSubmit = document.querySelector("#loginSubmit");
-    const loginHelp = document.querySelector("#loginHelp");
     const spellPicker = document.querySelector("#spellPicker");
     const toast = document.querySelector("#toast");
     const isElectron = Boolean(window.overlayAPI);
@@ -834,12 +807,24 @@
     async function init() {
       if (isElectron) document.body.classList.add("electron");
       loadSavedState();
+      bindLoginEvents();
       await initSync();
       await loadDdragonSpells();
       renderPicker();
       renderBoard();
       bindControls();
       setInterval(tick, 400);
+    }
+
+    function bindLoginEvents() {
+      window.overlayAPI?.onLoginSuccess?.(payload => {
+        sync.enabled = true;
+        sync.serverUrl = String(payload?.serverUrl || sync.serverUrl || "").replace(/\/+$/, "");
+        sync.token = payload?.token || "";
+        closeLogin();
+        sync.socket?.close();
+        connectSyncSocket();
+      });
     }
 
     async function initSync() {
@@ -849,7 +834,6 @@
       sync.enabled = true;
       sync.serverUrl = config.serverUrl.replace(/\/+$/, "");
       sync.token = "";
-      loginServer.value = sync.serverUrl;
       openLogin("Login to sync overlay.");
     }
 
@@ -951,59 +935,14 @@
     function openLogin(message = "") {
       if (!sync.enabled) return;
       sync.loginOpen = true;
-      loginServer.value = sync.serverUrl || loginServer.value || "https://posung-lol-match.win";
-      loginHelp.textContent = message || "Admin account can control timers. Normal accounts are view only.";
-      loginModal.classList.add("open");
-      loginModal.setAttribute("aria-hidden", "false");
-      window.overlayAPI?.setLoginMode?.(true);
-      requestAnimationFrame(() => loginUsername.focus());
+      window.overlayAPI?.openLoginWindow?.({
+        serverUrl: sync.serverUrl || "https://posung-lol-match.win",
+        message: message || "Login to sync overlay."
+      });
     }
 
     function closeLogin() {
       sync.loginOpen = false;
-      loginModal.classList.remove("open");
-      loginModal.setAttribute("aria-hidden", "true");
-      window.overlayAPI?.setLoginMode?.(false);
-    }
-
-    async function loginToServer() {
-      const serverUrl = loginServer.value.trim().replace(/\/+$/, "");
-      const username = loginUsername.value.trim();
-      const password = loginPassword.value;
-      if (!serverUrl || !username || !password) return;
-      loginSubmit.disabled = true;
-      loginSubmit.textContent = "Logging in...";
-      loginHelp.textContent = "Connecting...";
-      try {
-        const body = new URLSearchParams();
-        body.set("username", username);
-        body.set("password", password);
-        const response = await fetch(`${serverUrl}/api/auth/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body
-        });
-        if (!response.ok) throw new Error("Login failed.");
-        const data = await response.json();
-        sync.enabled = true;
-        sync.serverUrl = serverUrl;
-        sync.token = data.access_token || "";
-        const result = await window.overlayAPI?.saveSyncConfig?.({
-          enabled: true,
-          serverUrl: sync.serverUrl,
-          token: ""
-        });
-        if (result && !result.ok) throw new Error(result.error || "Could not save login.");
-        loginPassword.value = "";
-        closeLogin();
-        sync.socket?.close();
-        connectSyncSocket();
-      } catch (error) {
-        loginHelp.textContent = error?.message || "Login failed.";
-      } finally {
-        loginSubmit.disabled = false;
-        loginSubmit.textContent = "Login";
-      }
     }
 
     async function loadDdragonSpells() {
@@ -1050,11 +989,6 @@
       modal.addEventListener("click", event => {
         if (event.target === modal) closePicker();
       });
-      loginForm.addEventListener("submit", event => {
-        event.preventDefault();
-        loginToServer();
-      });
-
       ["cosmic", "ionian", "unleashed"].forEach(id => {
         document.querySelector(`#${id}`).addEventListener("change", () => {
           saveState();

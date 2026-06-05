@@ -4,7 +4,8 @@ contextBridge.exposeInMainWorld("overlayAPI", {
   minimize: () => ipcRenderer.invoke("overlay:minimize"),
   close: () => ipcRenderer.invoke("overlay:close"),
   resetWindow: () => ipcRenderer.invoke("overlay:reset-window"),
-  setLoginMode: enabled => ipcRenderer.invoke("overlay:set-login-mode", enabled),
+  openLoginWindow: payload => ipcRenderer.invoke("overlay:open-login-window", payload),
+  onLoginSuccess: callback => ipcRenderer.on("overlay:login-success", (_event, payload) => callback(payload)),
   getSyncConfig: () => ipcRenderer.invoke("overlay:get-sync-config"),
   saveSyncConfig: config => ipcRenderer.invoke("overlay:save-sync-config", config)
 });

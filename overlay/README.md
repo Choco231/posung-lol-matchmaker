@@ -39,3 +39,5 @@ When sync is enabled and no saved token exists, the overlay opens a login form.
 Admin accounts can control timers. Normal approved users can view the shared state, but clicks are blocked by the server.
 
 The overlay saves only `serverUrl`. Login tokens are kept in memory, so users log in again after restarting the overlay.
+
+The login form opens in a separate larger window. Pressing `X` on that window exits the overlay.

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Overlay Login</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #101722;
+      color: #eef4ff;
+      font-family: Inter, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+    .titlebar {
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px 0 14px;
+      background: rgba(2, 6, 13, .72);
+      border-bottom: 1px solid rgba(255, 255, 255, .1);
+      -webkit-app-region: drag;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .close {
+      width: 26px;
+      height: 24px;
+      border: 0;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, .06);
+      color: rgba(255, 255, 255, .78);
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+    }
+    .close:hover { background: rgba(255, 93, 115, .35); color: #fff; }
+    form {
+      padding: 18px;
+      display: grid;
+      gap: 10px;
+    }
+    h1 {
+      margin: 0 0 4px;
+      font-size: 18px;
+    }
+    p {
+      margin: 0 0 6px;
+      color: #aab5c8;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    label {
+      display: grid;
+      gap: 5px;
+      color: #aab5c8;
+      font-size: 12px;
+    }
+    input {
+      width: 100%;
+      padding: 9px 10px;
+      border-radius: 7px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      background: rgba(2, 6, 13, .72);
+      color: #eef4ff;
+      outline: none;
+      font: inherit;
+      user-select: text;
+    }
+    input:focus { border-color: rgba(76, 201, 240, .75); }
+    button[type="submit"] {
+      min-height: 36px;
+      border: 0;
+      border-radius: 7px;
+      background: #4cc9f0;
+      color: #07101d;
+      font-weight: 800;
+      cursor: pointer;
+      margin-top: 2px;
+    }
+    button[type="submit"]:disabled {
+      opacity: .55;
+      cursor: wait;
+    }
+    .message {
+      min-height: 16px;
+      color: #ffd166;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="titlebar">
+    <span>LoL Spell Overlay Login</span>
+    <button class="close" id="closeBtn" type="button" title="닫기">X</button>
+  </div>
+
+  <form id="loginForm">
+    <div>
+      <h1>로그인</h1>
+      <p>사이트 계정으로 로그인합니다. 관리자는 타이머 조작 가능, 일반 사용자는 보기 전용입니다.</p>
+    </div>
+
+    <label>
+      Server
+      <input id="serverUrl" type="url" required>
+    </label>
+    <label>
+      ID
+      <input id="username" type="text" autocomplete="username" required>
+    </label>
+    <label>
+      Password
+      <input id="password" type="password" autocomplete="current-password" required>
+    </label>
+
+    <button id="submitBtn" type="submit">Login</button>
+    <div class="message" id="message"></div>
+  </form>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const serverInput = document.querySelector("#serverUrl");
+    const usernameInput = document.querySelector("#username");
+    const passwordInput = document.querySelector("#password");
+    const message = document.querySelector("#message");
+    const submitBtn = document.querySelector("#submitBtn");
+
+    serverInput.value = params.get("serverUrl") || "https://posung-lol-match.win";
+    message.textContent = params.get("message") || "";
+
+    window.loginAPI?.onMessage?.(nextMessage => {
+      message.textContent = nextMessage || "";
+    });
+
+    document.querySelector("#closeBtn").addEventListener("click", () => {
+      window.loginAPI?.cancel();
+    });
+
+    document.querySelector("#loginForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const serverUrl = serverInput.value.trim().replace(/\/+$/, "");
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      if (!serverUrl || !username || !password) return;
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Logging in...";
+      message.textContent = "Connecting...";
+      try {
+        const body = new URLSearchParams();
+        body.set("username", username);
+        body.set("password", password);
+        const response = await fetch(`${serverUrl}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body
+        });
+        if (!response.ok) throw new Error("Login failed.");
+        const data = await response.json();
+        await window.loginAPI?.success?.({ serverUrl, token: data.access_token || "" });
+      } catch (error) {
+        message.textContent = error?.message || "Login failed.";
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Login";
+      }
+    });
+
+    requestAnimationFrame(() => usernameInput.focus());
+  </script>
+</body>
+</html>
