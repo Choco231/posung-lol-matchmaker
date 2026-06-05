@@ -1,24 +1,105 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect as sa_inspect, text
 from fastapi.security import OAuth2PasswordRequestForm
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 from pydantic import BaseModel
 from datetime import timedelta
 import json
 import trueskill
 import csv
+import asyncio
 from io import BytesIO, StringIO
 
 from database import get_db, engine, SessionLocal, User, Player, Match, now_kst
 from auth import (
     get_password_hash, verify_password, create_access_token,
-    get_current_user, get_approved_user, get_admin_user
+    get_current_user, get_approved_user, get_admin_user, get_user_from_token
 )
 from model import REAL_MATCH_SIGMA_DECAY, REAL_MATCH_TAU, SETTLED_SIGMA, update_ratings, find_best_matchups
 
 app = FastAPI(title="LoL Tournament API")
+
+SPELLCHECK_STATE_KEY = "spellcheck_state"
+DEFAULT_SPELLCHECK_STATE = {
+    "slots": [
+        [{"id": "SummonerFlash", "startedAt": 0, "duration": 0}, {"id": "SummonerTeleport", "startedAt": 0, "duration": 0}],
+        [{"id": "SummonerFlash", "startedAt": 0, "duration": 0}],
+        [{"id": "SummonerFlash", "startedAt": 0, "duration": 0}, {"id": "SummonerDot", "startedAt": 0, "duration": 0}],
+        [{"id": "SummonerFlash", "startedAt": 0, "duration": 0}, {"id": "SummonerHeal", "startedAt": 0, "duration": 0}],
+        [{"id": "SummonerFlash", "startedAt": 0, "duration": 0}, {"id": "SummonerExhaust", "startedAt": 0, "duration": 0}],
+    ],
+    "mods": [
+        {"cosmic": False, "ionian": False, "unleashed": False},
+        {"cosmic": False, "ionian": False, "unleashed": False},
+        {"cosmic": False, "ionian": False, "unleashed": False},
+        {"cosmic": False, "ionian": False, "unleashed": False},
+        {"cosmic": False, "ionian": False, "unleashed": False},
+    ],
+    "updatedBy": None,
+    "updatedAt": None,
+}
+
+
+class SpellcheckStateUpdate(BaseModel):
+    state: Dict[str, Any]
+
+
+def read_spellcheck_state(db: Session) -> Dict[str, Any]:
+    raw = db.execute(
+        text("SELECT value FROM app_metadata WHERE key = :key"),
+        {"key": SPELLCHECK_STATE_KEY},
+    ).scalar()
+    if not raw:
+        return json.loads(json.dumps(DEFAULT_SPELLCHECK_STATE))
+    try:
+        state = json.loads(raw)
+        if not isinstance(state, dict):
+            raise ValueError("state is not an object")
+        return state
+    except Exception:
+        return json.loads(json.dumps(DEFAULT_SPELLCHECK_STATE))
+
+
+def write_spellcheck_state(db: Session, state: Dict[str, Any], user: User) -> Dict[str, Any]:
+    next_state = dict(state)
+    next_state["updatedBy"] = user.display_name or user.username
+    next_state["updatedAt"] = now_kst().isoformat()
+    db.execute(text("""
+        INSERT INTO app_metadata (key, value)
+        VALUES (:key, :value)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    """), {"key": SPELLCHECK_STATE_KEY, "value": json.dumps(next_state, ensure_ascii=False)})
+    db.commit()
+    return next_state
+
+
+class SpellcheckConnectionManager:
+    def __init__(self):
+        self.connections: set[WebSocket] = set()
+        self.lock = asyncio.Lock()
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        async with self.lock:
+            self.connections.add(websocket)
+
+    async def disconnect(self, websocket: WebSocket):
+        async with self.lock:
+            self.connections.discard(websocket)
+
+    async def broadcast(self, message: Dict[str, Any]):
+        async with self.lock:
+            sockets = list(self.connections)
+        for websocket in sockets:
+            try:
+                await websocket.send_json(message)
+            except Exception:
+                await self.disconnect(websocket)
+
+
+spellcheck_manager = SpellcheckConnectionManager()
 
 # ── Startup: column migration + admin seed ─────────────────────────────────
 @app.on_event("startup")
@@ -260,6 +341,55 @@ def get_me(current_user: User = Depends(get_current_user)):
         "is_admin": current_user.is_admin,
         "is_approved": current_user.is_approved,
     }
+
+@app.get("/api/spellcheck/state")
+def get_spellcheck_state(db: Session = Depends(get_db)):
+    return read_spellcheck_state(db)
+
+@app.post("/api/spellcheck/state")
+async def update_spellcheck_state(req: SpellcheckStateUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_admin_user)):
+    state = write_spellcheck_state(db, req.state, current_user)
+    await spellcheck_manager.broadcast({"type": "state", "state": state})
+    return state
+
+@app.websocket("/api/spellcheck/ws")
+async def spellcheck_ws(websocket: WebSocket, token: Optional[str] = None):
+    db = SessionLocal()
+    user = get_user_from_token(token, db) if token else None
+    await spellcheck_manager.connect(websocket)
+    try:
+        await websocket.send_json({
+            "type": "hello",
+            "canControl": bool(user and user.is_admin),
+            "user": {
+                "username": user.username,
+                "displayName": user.display_name,
+                "isAdmin": user.is_admin,
+            } if user else None,
+        })
+        await websocket.send_json({"type": "state", "state": read_spellcheck_state(db)})
+        while True:
+            message = await websocket.receive_json()
+            if message.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
+                continue
+            if message.get("type") != "state:update":
+                await websocket.send_json({"type": "error", "message": "Unknown spellcheck message type"})
+                continue
+            if not user or not user.is_admin:
+                await websocket.send_json({"type": "error", "message": "Admin privileges required"})
+                continue
+            payload = message.get("state")
+            if not isinstance(payload, dict):
+                await websocket.send_json({"type": "error", "message": "Invalid spellcheck state"})
+                continue
+            state = write_spellcheck_state(db, payload, user)
+            await spellcheck_manager.broadcast({"type": "state", "state": state})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await spellcheck_manager.disconnect(websocket)
+        db.close()
 
 @app.get("/api/auth/users")
 def get_users(db: Session = Depends(get_db), current_user: User = Depends(get_admin_user)):

@@ -48,6 +48,16 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
     return user
 
+def get_user_from_token(token: str, db: Session):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            return None
+    except JWTError:
+        return None
+    return db.query(User).filter(User.username == username).first()
+
 def get_approved_user(current_user: User = Depends(get_current_user)):
     if not current_user.is_approved and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not approved by admin yet")

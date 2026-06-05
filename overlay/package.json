@@ -1,0 +1,13 @@
+{
+  "name": "lol-spell-overlay",
+  "version": "0.1.0",
+  "description": "League of Legends summoner spell cooldown overlay",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^31.7.7"
+  }
+}

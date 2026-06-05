@@ -1,0 +1,1255 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>롤 스펠 체크 오버레이</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: rgba(8, 11, 18, .78);
+      --panel: rgba(17, 23, 34, .9);
+      --line: rgba(255, 255, 255, .14);
+      --text: #eef4ff;
+      --muted: #aab5c8;
+      --accent: #4cc9f0;
+      --danger: #ff5d73;
+      --ready: #38e07b;
+      --gold: #d8b45c;
+      --size: 58px;
+      --gap: 8px;
+      font-family: Inter, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: start center;
+      padding: 18px;
+      background:
+        radial-gradient(circle at 20% 15%, rgba(76, 201, 240, .22), transparent 28%),
+        linear-gradient(135deg, #070b12, #111827 52%, #080b11);
+      color: var(--text);
+      -webkit-user-select: none;
+    }
+
+    body.electron {
+      background: transparent;
+      min-height: auto;
+      overflow: hidden;
+      padding: 0;
+    }
+
+    .app {
+      width: min(100%, 760px);
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 18px 70px rgba(0, 0, 0, .45);
+      backdrop-filter: blur(10px);
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      cursor: move;
+      user-select: none;
+      -webkit-app-region: drag;
+    }
+
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .mark {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 7px;
+      background: linear-gradient(135deg, #4cc9f0, #4361ee);
+      font-weight: 800;
+      color: #07101d;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .sub {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .actions,
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button,
+    select,
+    input {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: rgba(255, 255, 255, .08);
+      color: var(--text);
+      min-height: 32px;
+      padding: 0 10px;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+    }
+
+    button:hover { border-color: rgba(76, 201, 240, .55); }
+    button:active { transform: translateY(1px); }
+
+    .ghost { color: var(--muted); }
+    .danger { color: #ffd8dd; border-color: rgba(255, 93, 115, .4); }
+    .active { color: #d8fff0; border-color: rgba(56, 224, 123, .55); }
+
+    .panel {
+      padding: 12px;
+    }
+
+    .controls {
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 12px;
+    }
+
+    label.control {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 32px;
+      padding: 0 9px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, .05);
+      font-size: 12px;
+    }
+
+    input[type="checkbox"] {
+      accent-color: var(--accent);
+    }
+
+    input[type="range"] {
+      width: 104px;
+      accent-color: var(--accent);
+    }
+
+    .board {
+      display: grid;
+      gap: var(--gap);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 74px 1fr;
+      align-items: center;
+      gap: 10px;
+      min-height: calc(var(--size) + 12px);
+      padding: 6px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .045);
+    }
+
+    .lane {
+      display: grid;
+      gap: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .lane strong {
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .spells {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--gap);
+    }
+
+    .spell {
+      position: relative;
+      display: grid;
+      grid-template-columns: var(--size) 1fr auto;
+      align-items: center;
+      gap: 10px;
+      min-height: var(--size);
+      padding: 5px 8px 5px 5px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(2, 6, 13, .56);
+      overflow: hidden;
+    }
+
+    .spell.ready { border-color: rgba(56, 224, 123, .35); }
+    .spell.cooling { border-color: rgba(255, 93, 115, .5); }
+
+    .spell button.icon {
+      width: var(--size);
+      height: var(--size);
+      min-height: var(--size);
+      padding: 0;
+      border: 0;
+      border-radius: 7px;
+      overflow: hidden;
+      background: #0d1420;
+    }
+
+    .spell img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      filter: saturate(1.08);
+    }
+
+    .spell.cooling img {
+      filter: grayscale(.95) brightness(.62);
+    }
+
+    .meter {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 3px;
+      width: var(--progress, 0%);
+      background: linear-gradient(90deg, var(--danger), var(--gold));
+      transition: width .2s linear;
+    }
+
+    .spell-name {
+      font-weight: 700;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .spell-meta {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .time {
+      min-width: 58px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--ready);
+    }
+
+    .spell.cooling .time { color: #ffd166; }
+
+    .tools {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: end;
+    }
+
+    .mini {
+      min-height: 23px;
+      padding: 0 7px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .compact .app {
+      width: 138px;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      backdrop-filter: none;
+    }
+
+    .compact .controls {
+      display: none;
+    }
+
+    .compact .topbar {
+      gap: 2px;
+      padding: 3px 1px 2px 2px;
+      background: rgba(2, 6, 13, .72);
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    .compact .mark {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .compact h1 {
+      font-size: 11px;
+      max-width: 58px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .compact .sub {
+      display: none;
+    }
+
+    .opacity-control {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      -webkit-app-region: no-drag;
+    }
+
+    .opacity-control input {
+      width: 58px;
+      height: 14px;
+      appearance: none;
+      -webkit-appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .opacity-control input::-webkit-slider-runnable-track {
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(8, 11, 18, .9);
+      border: 1px solid rgba(0, 0, 0, .45);
+    }
+
+    .opacity-control input::-webkit-slider-thumb {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 11px;
+      height: 11px;
+      margin-top: -4px;
+      border-radius: 50%;
+      background: rgba(12, 15, 22, .98);
+      border: 1px solid rgba(255, 255, 255, .22);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .75);
+    }
+
+    .compact .actions {
+      gap: 0;
+      flex-wrap: nowrap;
+      margin-left: auto;
+    }
+
+    .compact .actions button {
+      min-height: 22px;
+      padding: 0 6px;
+      font-size: 11px;
+    }
+
+    .compact #closeBtn {
+      position: relative;
+      left: -7px;
+      background: rgba(0, 0, 0, .38);
+      border-color: rgba(255, 255, 255, .16);
+      color: rgba(255, 255, 255, .72);
+    }
+
+    .compact .panel {
+      padding: 2px;
+      background: rgba(2, 6, 13, .72);
+    }
+
+    .compact .board {
+      gap: 2px;
+    }
+
+    .compact .row {
+      grid-template-columns: 48px 1fr;
+      min-height: 36px;
+      padding: 1px 0;
+      gap: 2px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .compact .lane {
+      font-size: 10px;
+      gap: 3px;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto;
+      justify-items: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    .lane-options {
+      display: flex;
+      gap: 2px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .lane-toggle {
+      width: 16px;
+      height: 16px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, .05);
+      font-size: 9px;
+      font-weight: 800;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+      overflow: hidden;
+      opacity: .45;
+      filter: grayscale(.75) brightness(.7);
+      transition: opacity .12s ease, filter .12s ease, box-shadow .12s ease, border-color .12s ease;
+    }
+
+    .lane-toggle input {
+      display: none;
+    }
+
+    .lane-toggle img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 3px;
+    }
+
+    .lane-toggle:has(input:checked) {
+      opacity: 1;
+      filter: none;
+      color: #07101d;
+      border-color: rgba(255, 230, 142, .95);
+      background: rgba(76, 201, 240, .22);
+      box-shadow:
+        0 0 0 1px rgba(76, 201, 240, .65),
+        0 0 8px rgba(76, 201, 240, .75);
+    }
+
+    .lane-toggle.top-mod {
+      opacity: .62;
+      filter: grayscale(.35) brightness(.9) contrast(1.2);
+      background: rgba(216, 180, 92, .18);
+      border-color: rgba(216, 180, 92, .45);
+    }
+
+    .lane-toggle.top-mod:has(input:checked) {
+      opacity: 1;
+      filter: brightness(1.15) contrast(1.3) saturate(1.25);
+      border-color: rgba(255, 230, 142, 1);
+      box-shadow:
+        0 0 0 1px rgba(255, 230, 142, .75),
+        0 0 8px rgba(255, 230, 142, .8);
+    }
+
+    .compact .spells {
+      grid-template-columns: repeat(2, max-content);
+      gap: 4px;
+    }
+
+    .compact .lane span,
+    .compact .spell-copy,
+    .compact .spell-meta,
+    .compact .spell-name,
+    .compact .mini {
+      display: none;
+    }
+
+    .compact .spell {
+      --size: 32px;
+      width: 36px;
+      grid-template-columns: var(--size);
+      padding: 2px;
+      min-height: 36px;
+      gap: 0;
+    }
+
+    .compact .spell.cooling img {
+      opacity: .28;
+      filter: grayscale(.9) brightness(.72);
+    }
+
+    .compact .meter {
+      display: none;
+    }
+
+    .compact .time {
+      min-width: 0;
+      font-size: 12px;
+      padding: 0;
+      text-align: center;
+      color: #ffd166;
+      text-shadow: 0 1px 3px #000, 0 0 5px #000;
+    }
+
+    .compact .time:empty {
+      display: none;
+    }
+
+    .compact .tools {
+      position: absolute;
+      left: 2px;
+      top: 2px;
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-items: center;
+      padding: 18px;
+      background: rgba(0, 0, 0, .58);
+      z-index: 10;
+    }
+
+    .modal.open { display: grid; }
+
+    .dialog {
+      width: min(100%, 140px);
+      max-height: min(260px, 90vh);
+      overflow: auto;
+      background: #101722;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, .55);
+    }
+
+    .dialog-head {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+
+    .dialog-head strong {
+      display: none;
+    }
+
+    .spell-picker {
+      display: grid;
+      grid-template-columns: repeat(3, 34px);
+      gap: 5px;
+      justify-content: center;
+    }
+
+    .pick {
+      display: grid;
+      grid-template-columns: 34px;
+      align-items: center;
+      justify-content: center;
+      min-height: 36px;
+      width: 36px;
+      padding: 1px;
+    }
+
+    .pick img {
+      width: 34px;
+      height: 34px;
+      border-radius: 6px;
+    }
+
+    .pick span {
+      display: none;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      padding: 9px 12px;
+      border-radius: 7px;
+      background: rgba(11, 16, 25, .94);
+      border: 1px solid var(--line);
+      color: var(--text);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s ease;
+      z-index: 20;
+      font-size: 13px;
+    }
+
+    .toast.show { opacity: 1; }
+
+    .electron-only {
+      display: none;
+    }
+
+    body.electron .electron-only {
+      display: inline-flex;
+      align-items: center;
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 8px; }
+      .topbar { align-items: flex-start; }
+      .actions { justify-content: flex-end; }
+      .row {
+        grid-template-columns: 1fr;
+      }
+      .lane {
+        grid-template-columns: auto 1fr;
+        align-items: baseline;
+      }
+      .spells {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    body.compact {
+      overflow: hidden;
+    }
+
+    body.compact .row {
+      grid-template-columns: 48px 1fr;
+    }
+
+    body.compact .lane {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto;
+      align-items: center;
+      justify-items: center;
+      text-align: center;
+    }
+
+    body.compact .lane-options {
+      grid-row: 2;
+    }
+
+    body.compact .spells {
+      grid-template-columns: repeat(2, max-content);
+    }
+
+    body.compact .spell {
+      grid-template-columns: 32px;
+    }
+  </style>
+</head>
+<body class="compact">
+  <main class="app" id="app">
+    <header class="topbar" id="dragHandle">
+      <div class="opacity-control">
+        <input type="range" id="topOpacity" min="45" max="100" value="78" title="투명도">
+      </div>
+      <div class="actions">
+        <button id="closeBtn" class="danger electron-only" title="닫기">X</button>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="controls">
+        <label class="control"><input type="checkbox" id="cosmic"> 우주적 통찰력</label>
+        <label class="control"><input type="checkbox" id="ionian"> 아이오니아 장화</label>
+        <label class="control"><input type="checkbox" id="unleashed"> 강화 텔 적용</label>
+        <label class="control">투명도 <input type="range" id="opacity" min="45" max="100" value="78"></label>
+        <button id="soundBtn" class="ghost">소리 OFF</button>
+        <button id="seedBtn" class="ghost">자주 쓰는 조합</button>
+      </div>
+      <div class="board" id="board"></div>
+    </section>
+  </main>
+
+  <div class="modal" id="modal" aria-hidden="true">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="dialog-head">
+        <strong id="modalTitle">스펠 선택</strong>
+        <button id="closeModal">닫기</button>
+      </div>
+      <div class="spell-picker" id="spellPicker"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const DDRAGON_VERSION = "16.11.1";
+    const CDN = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}`;
+    const FALLBACK_SPELLS = [
+      { id: "SummonerFlash", name: "점멸", cooldown: 300, file: "SummonerFlash.png" },
+      { id: "SummonerTeleport", name: "순간이동", cooldown: 300, file: "SummonerTeleport.png" },
+      { id: "SummonerDot", name: "점화", cooldown: 180, file: "SummonerDot.png" },
+      { id: "SummonerExhaust", name: "탈진", cooldown: 240, file: "SummonerExhaust.png" },
+      { id: "SummonerHeal", name: "회복", cooldown: 240, file: "SummonerHeal.png" },
+      { id: "SummonerBarrier", name: "방어막", cooldown: 180, file: "SummonerBarrier.png" },
+      { id: "SummonerHaste", name: "유체화", cooldown: 240, file: "SummonerHaste.png" },
+      { id: "SummonerBoost", name: "정화", cooldown: 240, file: "SummonerBoost.png" }
+    ];
+
+    const LANES = ["TOP", "JUG", "MID", "ADC", "SUP"];
+    const IONIAN_ICON = `${CDN}/img/item/3158.png`;
+    const COSMIC_ICON = "https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Inspiration/CosmicInsight/CosmicInsight.png";
+    const TOP_ICON = "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-parties/global/default/icon-position-top.png";
+    const TOP_QUEST_TELEPORT_ID = "TopQuestTeleport";
+    const TOP_QUEST_TELEPORT_SPELL = { id: TOP_QUEST_TELEPORT_ID, name: "TOP 퀘스트 텔", cooldown: 420, icon: TOP_ICON };
+    const DEFAULT_MODS = LANES.map(() => ({ cosmic: false, ionian: false, unleashed: false }));
+    const DEFAULTS = [
+      ["SummonerFlash", "SummonerTeleport"],
+      ["SummonerFlash"],
+      ["SummonerFlash", "SummonerDot"],
+      ["SummonerFlash", "SummonerHeal"],
+      ["SummonerFlash", "SummonerExhaust"]
+    ];
+    const POPULAR = [
+      ["SummonerFlash", "SummonerTeleport"],
+      ["SummonerFlash"],
+      ["SummonerFlash", "SummonerTeleport"],
+      ["SummonerFlash", "SummonerBarrier"],
+      ["SummonerFlash", "SummonerHeal"]
+    ];
+
+    const state = {
+      spells: FALLBACK_SPELLS,
+      slots: DEFAULTS.map(pair => pair.map(id => ({ id, startedAt: 0, duration: 0 }))),
+      mods: DEFAULT_MODS.map(mod => ({ ...mod })),
+      picker: null,
+      sound: false
+    };
+
+    const sync = {
+      enabled: false,
+      serverUrl: "",
+      token: "",
+      socket: null,
+      connected: false,
+      canControl: false,
+      applyingRemote: false,
+      retryTimer: null
+    };
+
+    const board = document.querySelector("#board");
+    const modal = document.querySelector("#modal");
+    const spellPicker = document.querySelector("#spellPicker");
+    const toast = document.querySelector("#toast");
+    const isElectron = Boolean(window.overlayAPI);
+
+    init();
+
+    async function init() {
+      if (isElectron) document.body.classList.add("electron");
+      loadSavedState();
+      await initSync();
+      await loadDdragonSpells();
+      renderPicker();
+      renderBoard();
+      bindControls();
+      setInterval(tick, 400);
+    }
+
+    async function initSync() {
+      if (!window.overlayAPI?.getSyncConfig) return;
+      const config = await window.overlayAPI.getSyncConfig();
+      if (!config?.enabled || !config.serverUrl) return;
+      sync.enabled = true;
+      sync.serverUrl = config.serverUrl.replace(/\/+$/, "");
+      sync.token = config.token || "";
+      connectSyncSocket();
+    }
+
+    function connectSyncSocket() {
+      if (!sync.enabled || !sync.serverUrl) return;
+      clearTimeout(sync.retryTimer);
+      const wsUrl = `${sync.serverUrl.replace(/^http:/, "ws:").replace(/^https:/, "wss:")}/api/spellcheck/ws${sync.token ? `?token=${encodeURIComponent(sync.token)}` : ""}`;
+      try {
+        sync.socket = new WebSocket(wsUrl);
+      } catch {
+        scheduleSyncReconnect();
+        return;
+      }
+      sync.socket.addEventListener("open", () => {
+        sync.connected = true;
+        flash("Sync connected.");
+      });
+      sync.socket.addEventListener("close", () => {
+        sync.connected = false;
+        sync.canControl = false;
+        scheduleSyncReconnect();
+      });
+      sync.socket.addEventListener("message", event => {
+        const message = JSON.parse(event.data);
+        if (message.type === "hello") {
+          sync.canControl = Boolean(message.canControl);
+          return;
+        }
+        if (message.type === "state") {
+          applyRemoteState(message.state);
+          return;
+        }
+        if (message.type === "error") {
+          flash(message.message || "Sync error.");
+        }
+      });
+    }
+
+    function scheduleSyncReconnect() {
+      clearTimeout(sync.retryTimer);
+      sync.retryTimer = setTimeout(connectSyncSocket, 1500);
+    }
+
+    function applyRemoteState(nextState) {
+      if (!nextState || typeof nextState !== "object") return;
+      sync.applyingRemote = true;
+      if (Array.isArray(nextState.slots)) state.slots = nextState.slots;
+      if (Array.isArray(nextState.mods)) {
+        state.mods = DEFAULT_MODS.map((mod, index) => ({ ...mod, ...(nextState.mods[index] || {}) }));
+        state.mods.forEach((mod, index) => {
+          if (index !== 0) mod.unleashed = false;
+        });
+      }
+      normalizeSlots();
+      saveState();
+      renderBoard();
+      sync.applyingRemote = false;
+    }
+
+    function publishSharedState() {
+      if (!sync.enabled || sync.applyingRemote) return true;
+      if (!sync.connected || sync.socket?.readyState !== WebSocket.OPEN) {
+        flash("Sync disconnected.");
+        return false;
+      }
+      if (!sync.canControl) {
+        flash("Admin only.");
+        return false;
+      }
+      sync.socket.send(JSON.stringify({
+        type: "state:update",
+        state: {
+          slots: state.slots,
+          mods: state.mods
+        }
+      }));
+      return true;
+    }
+
+    function canChangeSharedState() {
+      if (!sync.enabled) return true;
+      if (!sync.connected || sync.socket?.readyState !== WebSocket.OPEN) {
+        flash("Sync disconnected.");
+        return false;
+      }
+      if (!sync.canControl) {
+        flash("Admin only.");
+        return false;
+      }
+      return true;
+    }
+
+    async function loadDdragonSpells() {
+      try {
+        const response = await fetch(`${CDN}/data/ko_KR/summoner.json`);
+        if (!response.ok) throw new Error("Data Dragon request failed");
+        const json = await response.json();
+        const useful = new Set(FALLBACK_SPELLS.map(spell => spell.id));
+        state.spells = Object.values(json.data)
+          .filter(spell => useful.has(spell.id))
+          .map(spell => ({
+            id: spell.id,
+            name: spell.name,
+            cooldown: Number(String(spell.cooldownBurn).split("/")[0]) || fallbackById(spell.id).cooldown,
+            file: spell.image.full
+          }))
+          .sort((a, b) => FALLBACK_SPELLS.findIndex(spell => spell.id === a.id) - FALLBACK_SPELLS.findIndex(spell => spell.id === b.id));
+        flash("최신 Data Dragon 스펠 데이터를 불러왔습니다.");
+      } catch {
+        flash("오프라인 기본 스펠 데이터로 실행합니다.");
+      }
+    }
+
+    function bindControls() {
+      document.querySelector("#closeBtn")?.addEventListener("click", () => {
+        window.overlayAPI?.close();
+      });
+
+      document.querySelector("#soundBtn").addEventListener("click", event => {
+        state.sound = !state.sound;
+        event.currentTarget.textContent = state.sound ? "소리 ON" : "소리 OFF";
+        saveState();
+      });
+
+      document.querySelector("#seedBtn").addEventListener("click", () => {
+        if (!canChangeSharedState()) return;
+        state.slots = POPULAR.map(pair => pair.map(id => ({ id, startedAt: 0, duration: 0 })));
+        saveState();
+        renderBoard();
+        publishSharedState();
+      });
+
+      document.querySelector("#closeModal").addEventListener("click", closePicker);
+      modal.addEventListener("click", event => {
+        if (event.target === modal) closePicker();
+      });
+
+      ["cosmic", "ionian", "unleashed"].forEach(id => {
+        document.querySelector(`#${id}`).addEventListener("change", () => {
+          saveState();
+          renderBoard();
+        });
+      });
+
+      const opacityInput = document.querySelector("#opacity");
+      const topOpacityInput = document.querySelector("#topOpacity");
+      const applyOpacity = value => {
+        document.querySelector("#app").style.opacity = value / 100;
+        opacityInput.value = value;
+        topOpacityInput.value = value;
+        saveState();
+      };
+      opacityInput.addEventListener("input", event => applyOpacity(event.target.value));
+      topOpacityInput.addEventListener("input", event => applyOpacity(event.target.value));
+
+      window.addEventListener("keydown", event => {
+        if (event.key === "Escape") closePicker();
+      });
+
+      makeDraggable();
+    }
+
+    function renderBoard() {
+      normalizeSlots();
+      board.innerHTML = "";
+      state.slots.forEach((row, rowIndex) => {
+        const rowEl = document.createElement("div");
+        rowEl.className = "row";
+        rowEl.innerHTML = `
+          <div class="lane">
+            <strong>${LANES[rowIndex]}</strong>
+            <div class="lane-options">
+              ${renderLaneToggle(rowIndex, "ionian", "ionian", "아이오니아 장화")}
+              ${renderLaneToggle(rowIndex, "cosmic", "cosmic", "우주적 통찰력")}
+              ${rowIndex === 0 ? renderLaneToggle(rowIndex, "unleashed", "top", "기존 텔레포트 강화") : ""}
+            </div>
+            <span>${rowIndex + 1} / Shift+${rowIndex + 1}</span>
+          </div>
+          <div class="spells"></div>
+        `;
+        rowEl.querySelectorAll("[data-lane-mod]").forEach(input => {
+          input.addEventListener("change", event => {
+            if (!canChangeSharedState()) {
+              event.currentTarget.checked = !event.currentTarget.checked;
+              return;
+            }
+            const mod = event.currentTarget.dataset.laneMod;
+            state.mods[rowIndex][mod] = event.currentTarget.checked;
+            if (rowIndex !== 0) state.mods[rowIndex].unleashed = false;
+            saveState();
+            renderBoard();
+            publishSharedState();
+          });
+        });
+        const spellsEl = rowEl.querySelector(".spells");
+        row.forEach((slot, slotIndex) => {
+          spellsEl.appendChild(renderSpell(slot, rowIndex, slotIndex));
+        });
+        board.appendChild(rowEl);
+      });
+    }
+
+    function renderLaneToggle(rowIndex, mod, icon, title) {
+      const checked = state.mods[rowIndex]?.[mod] ? "checked" : "";
+      const content = icon === "ionian"
+        ? `<img src="${IONIAN_ICON}" alt="${title}">`
+        : icon === "cosmic"
+          ? `<img src="${COSMIC_ICON}" alt="${title}">`
+          : `<img src="${TOP_ICON}" alt="${title}">`;
+      const extraClass = icon === "top" ? " top-mod" : "";
+      return `<label class="lane-toggle${extraClass}" title="${title}"><input type="checkbox" data-lane-mod="${mod}" ${checked}>${content}</label>`;
+    }
+
+    function renderSpell(slot, rowIndex, slotIndex) {
+      const spell = spellById(slot.id);
+      const remaining = getRemaining(slot);
+      const total = adjustedCooldown(spell, rowIndex);
+      const cooling = remaining > 0;
+      const el = document.createElement("article");
+      el.className = `spell ${cooling ? "cooling" : "ready"}`;
+      el.style.setProperty("--progress", cooling ? `${Math.max(0, Math.min(100, remaining / total * 100))}%` : "0%");
+      el.innerHTML = `
+        <button class="icon" title="${spell.name} 타이머 시작/취소">
+          <img src="${iconUrl(spell)}" alt="${spell.name}">
+        </button>
+        <div class="spell-copy">
+          <div class="spell-name">${spell.name}</div>
+          <div class="spell-meta">기본 ${formatTime(baseCooldown(spell, rowIndex))} · 적용 ${formatTime(total)}</div>
+        </div>
+        <div class="tools">
+          <div class="time">${cooling ? formatTime(remaining) : ""}</div>
+          <button class="mini" title="스펠 변경">변경</button>
+        </div>
+        <div class="meter"></div>
+      `;
+      el.querySelector(".icon").addEventListener("pointerdown", event => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        triggerSlot(rowIndex, slotIndex);
+      });
+      el.querySelector(".icon").addEventListener("contextmenu", event => {
+        event.preventDefault();
+        openPicker(rowIndex, slotIndex);
+      });
+      el.querySelector(".mini").addEventListener("click", () => openPicker(rowIndex, slotIndex));
+      return el;
+    }
+
+    function renderPicker() {
+      spellPicker.innerHTML = "";
+      const [rowIndex] = state.picker || [];
+      const pickerSpells = rowIndex === 0 ? [TOP_QUEST_TELEPORT_SPELL, ...state.spells] : state.spells;
+      pickerSpells.forEach(spell => {
+        const button = document.createElement("button");
+        button.className = "pick";
+        button.title = spell.name;
+        button.innerHTML = `<img src="${iconUrl(spell)}" alt="${spell.name}">`;
+        button.addEventListener("click", () => {
+          if (!state.picker) return;
+          if (!canChangeSharedState()) {
+            closePicker();
+            return;
+          }
+          const [rowIndex, slotIndex] = state.picker;
+          state.slots[rowIndex][slotIndex] = { id: spell.id, startedAt: 0, duration: 0 };
+          closePicker();
+          saveState();
+          renderBoard();
+          publishSharedState();
+        });
+        spellPicker.appendChild(button);
+      });
+    }
+
+    function openPicker(rowIndex, slotIndex) {
+      state.picker = [rowIndex, slotIndex];
+      renderPicker();
+      modal.classList.add("open");
+      modal.setAttribute("aria-hidden", "false");
+    }
+
+    function closePicker() {
+      state.picker = null;
+      modal.classList.remove("open");
+      modal.setAttribute("aria-hidden", "true");
+    }
+
+    function triggerSlot(rowIndex, slotIndex) {
+      if (!canChangeSharedState()) return;
+      const slot = state.slots[rowIndex][slotIndex];
+      if (getRemaining(slot) > 0) {
+        slot.startedAt = 0;
+        slot.duration = 0;
+      } else {
+        const spell = spellById(slot.id);
+        slot.duration = adjustedCooldown(spell, rowIndex);
+        slot.startedAt = Date.now();
+      }
+      saveState();
+      renderBoard();
+      publishSharedState();
+    }
+
+    function tick() {
+      let changed = false;
+      state.slots.flat().forEach(slot => {
+        if (slot.startedAt && getRemaining(slot) <= 0) {
+          slot.startedAt = 0;
+          slot.duration = 0;
+          changed = true;
+          if (state.sound) beep();
+        }
+      });
+      if (changed) {
+        saveState();
+        flash("스펠이 돌아왔습니다.");
+      }
+      renderBoard();
+    }
+
+    function adjustedCooldown(spell, rowIndex = 0) {
+      const base = baseCooldown(spell, rowIndex);
+      const mods = state.mods[rowIndex] || DEFAULT_MODS[rowIndex] || DEFAULT_MODS[0];
+      const haste = (mods.cosmic ? 18 : 0) + (mods.ionian ? 10 : 0);
+      return Math.round(base / (1 + haste / 100));
+    }
+
+    function baseCooldown(spell, rowIndex = 0) {
+      const mods = state.mods[rowIndex] || DEFAULT_MODS[rowIndex] || DEFAULT_MODS[0];
+      if (spell.id === TOP_QUEST_TELEPORT_ID) return 420;
+      if (rowIndex === 0 && spell.id === "SummonerTeleport" && mods.unleashed) return 240;
+      return spell.cooldown;
+    }
+
+    function getRemaining(slot) {
+      if (!slot.startedAt) return 0;
+      return Math.max(0, Math.ceil(slot.duration - (Date.now() - slot.startedAt) / 1000));
+    }
+
+    function spellById(id) {
+      return state.spells.find(spell => spell.id === id) || fallbackById(id) || state.spells[0];
+    }
+
+    function fallbackById(id) {
+      if (id === TOP_QUEST_TELEPORT_ID) return TOP_QUEST_TELEPORT_SPELL;
+      return FALLBACK_SPELLS.find(spell => spell.id === id);
+    }
+
+    function iconUrl(spell) {
+      if (spell.icon) return spell.icon;
+      return `${CDN}/img/spell/${spell.file}`;
+    }
+
+    function formatTime(seconds) {
+      const minutes = Math.floor(seconds / 60);
+      const secs = Math.max(0, seconds % 60);
+      return `${minutes}:${String(secs).padStart(2, "0")}`;
+    }
+
+    function saveState() {
+      const data = {
+        slots: state.slots,
+        mods: state.mods,
+        sound: state.sound,
+        cosmic: document.querySelector("#cosmic")?.checked || false,
+        ionian: document.querySelector("#ionian")?.checked || false,
+        unleashed: state.mods[0]?.unleashed || false,
+        opacity: document.querySelector("#opacity")?.value || "78"
+      };
+      localStorage.setItem("lol-spell-overlay", JSON.stringify(data));
+    }
+
+    function loadSavedState() {
+      try {
+        const data = JSON.parse(localStorage.getItem("lol-spell-overlay") || "{}");
+        if (Array.isArray(data.slots)) state.slots = data.slots;
+        normalizeSlots();
+        if (Array.isArray(data.mods)) {
+          state.mods = DEFAULT_MODS.map((mod, index) => ({ ...mod, ...(data.mods[index] || {}) }));
+          state.mods.forEach((mod, index) => {
+            if (index !== 0) mod.unleashed = false;
+          });
+        } else {
+          state.mods = DEFAULT_MODS.map(mod => ({
+            ...mod,
+            cosmic: Boolean(data.cosmic),
+            ionian: Boolean(data.ionian)
+          }));
+          state.mods[0].unleashed = Boolean(data.unleashed);
+        }
+        state.sound = Boolean(data.sound);
+        requestAnimationFrame(() => {
+          document.querySelector("#cosmic").checked = Boolean(data.cosmic);
+          document.querySelector("#ionian").checked = Boolean(data.ionian);
+          document.querySelector("#unleashed").checked = Boolean(state.mods[0]?.unleashed);
+          document.querySelector("#opacity").value = data.opacity || "78";
+          document.querySelector("#topOpacity").value = data.opacity || "78";
+          document.querySelector("#soundBtn").textContent = state.sound ? "소리 ON" : "소리 OFF";
+          document.querySelector("#opacity").dispatchEvent(new Event("input"));
+        });
+      } catch {
+        localStorage.removeItem("lol-spell-overlay");
+      }
+    }
+
+    function normalizeSlots() {
+      state.slots = DEFAULTS.map((defaults, rowIndex) => {
+        const existing = Array.isArray(state.slots[rowIndex]) ? state.slots[rowIndex] : [];
+        const cleaned = existing.filter(slot => {
+          if (!slot?.id || slot.id === "SummonerSmite") return false;
+          if (slot.id === TOP_QUEST_TELEPORT_ID && rowIndex !== 0) return false;
+          return true;
+        });
+        return defaults.map((defaultId, slotIndex) => {
+          const slot = cleaned[slotIndex] || { id: defaultId, startedAt: 0, duration: 0 };
+          return {
+          id: slot.id || defaultId,
+          startedAt: slot.startedAt || 0,
+          duration: slot.duration || 0
+          };
+        });
+      });
+    }
+
+    function flash(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      clearTimeout(flash.timer);
+      flash.timer = setTimeout(() => toast.classList.remove("show"), 1600);
+    }
+
+    function beep() {
+      const context = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = context.createOscillator();
+      const gain = context.createGain();
+      osc.frequency.value = 880;
+      gain.gain.value = .05;
+      osc.connect(gain).connect(context.destination);
+      osc.start();
+      setTimeout(() => {
+        osc.stop();
+        context.close();
+      }, 160);
+    }
+
+    function makeDraggable() {
+      if (isElectron) return;
+      const handle = document.querySelector("#dragHandle");
+      const app = document.querySelector("#app");
+      let start = null;
+
+      handle.addEventListener("pointerdown", event => {
+        if (event.target.closest("button")) return;
+        const rect = app.getBoundingClientRect();
+        start = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top };
+        app.style.position = "fixed";
+        app.style.left = `${rect.left}px`;
+        app.style.top = `${rect.top}px`;
+        app.style.zIndex = "5";
+        handle.setPointerCapture(event.pointerId);
+      });
+
+      handle.addEventListener("pointermove", event => {
+        if (!start) return;
+        app.style.left = `${Math.max(0, start.left + event.clientX - start.x)}px`;
+        app.style.top = `${Math.max(0, start.top + event.clientY - start.y)}px`;
+      });
+
+      handle.addEventListener("pointerup", () => {
+        start = null;
+      });
+    }
+  </script>
+</body>
+</html>

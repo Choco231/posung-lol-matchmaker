@@ -21,6 +21,11 @@ node_modules/
 dist/
 .eslintcache
 frontend/coupon/
+overlay/node_modules/
+overlay/.overlay-user-data/
+overlay/overlay-debug.log
+overlay/overlay-runtime.log
+overlay/overlay-config.json
 
 # OS
 .DS_Store
