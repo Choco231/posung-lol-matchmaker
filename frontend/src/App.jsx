@@ -167,10 +167,9 @@ function App() {
               {navLink('/teambuilder', '⚖️ 팀 짜기 (10인)')}
               {navLink('/record', '⚔️ 실전 결과 기록')}
 
-              {navLink('/spellcheck', 'Spell Check')}
-
               {userInfo?.is_admin && (
                 <>
+                  {navLink('/spellcheck', 'Spell Check')}
                   {navLink('/admin', '🛡️ 관리자 (가입승인)')}
                   {navLink('/datamanage', '🛠️ 데이터 관리')}
                 </>
@@ -219,7 +218,7 @@ function App() {
           <Route path="/players" element={<PcOnlyGuard><PlayerManagement token={token} userInfo={userInfo} /></PcOnlyGuard>} />
           <Route path="/teambuilder" element={<PcOnlyGuard><TeamBuilder token={token} /></PcOnlyGuard>} />
           <Route path="/record" element={<PcOnlyGuard><RecordMatch token={token} /></PcOnlyGuard>} />
-          <Route path="/spellcheck" element={<PcOnlyGuard>{token ? <SpellCheck token={token} /> : <Leaderboard />}</PcOnlyGuard>} />
+          <Route path="/spellcheck" element={<PcOnlyGuard>{userInfo?.is_admin ? <SpellCheck token={token} /> : <Leaderboard />}</PcOnlyGuard>} />
           <Route path="/admin" element={<PcOnlyGuard>{userInfo?.is_admin ? <Admin token={token} userInfo={userInfo} /> : <Leaderboard />}</PcOnlyGuard>} />
           <Route path="/datamanage" element={<PcOnlyGuard>{userInfo?.is_admin ? <DataManagement token={token} /> : <Leaderboard />}</PcOnlyGuard>} />
         </Routes>
