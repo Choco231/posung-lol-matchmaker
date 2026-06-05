@@ -8,6 +8,9 @@ const userDataPath = path.join(__dirname, ".overlay-user-data");
 const syncConfigPath = path.join(__dirname, "overlay-config.json");
 const DEFAULT_WIDTH = 140;
 const DEFAULT_HEIGHT = 272;
+const LOGIN_WIDTH = 260;
+const LOGIN_HEIGHT = 330;
+const DEFAULT_SERVER_URL = "https://posung-lol-match.win";
 
 fs.mkdirSync(userDataPath, { recursive: true });
 app.setPath("userData", userDataPath);
@@ -104,19 +107,43 @@ ipcMain.handle("overlay:reset-window", () => {
   mainWindow.center();
 });
 
+ipcMain.handle("overlay:set-login-mode", (_event, enabled) => {
+  if (!mainWindow) return;
+  if (enabled) {
+    mainWindow.setSize(LOGIN_WIDTH, LOGIN_HEIGHT);
+  } else {
+    mainWindow.setSize(DEFAULT_WIDTH, DEFAULT_HEIGHT);
+  }
+});
+
 ipcMain.handle("overlay:get-sync-config", () => {
   try {
     if (!fs.existsSync(syncConfigPath)) {
-      return { enabled: false, serverUrl: "", token: "" };
+      return { enabled: true, serverUrl: DEFAULT_SERVER_URL, token: "" };
     }
     const config = JSON.parse(fs.readFileSync(syncConfigPath, "utf8"));
     return {
       enabled: Boolean(config.enabled),
-      serverUrl: String(config.serverUrl || "").replace(/\/+$/, ""),
+      serverUrl: String(config.serverUrl || DEFAULT_SERVER_URL).replace(/\/+$/, ""),
       token: String(config.token || "")
     };
   } catch (error) {
     log(`sync config read failed: ${error.stack || error}`);
-    return { enabled: false, serverUrl: "", token: "" };
+    return { enabled: true, serverUrl: DEFAULT_SERVER_URL, token: "" };
+  }
+});
+
+ipcMain.handle("overlay:save-sync-config", (_event, config) => {
+  try {
+    const nextConfig = {
+      enabled: Boolean(config?.enabled),
+      serverUrl: String(config?.serverUrl || "").replace(/\/+$/, ""),
+      token: String(config?.token || "")
+    };
+    fs.writeFileSync(syncConfigPath, `${JSON.stringify(nextConfig, null, 2)}\n`, "utf8");
+    return { ok: true, config: nextConfig };
+  } catch (error) {
+    log(`sync config write failed: ${error.stack || error}`);
+    return { ok: false, error: String(error?.message || error) };
   }
 });

@@ -561,6 +561,49 @@
       display: none;
     }
 
+    .login-dialog {
+      width: 226px;
+      max-height: none;
+    }
+
+    .login-dialog h2 {
+      display: block;
+      margin: 0 0 8px;
+      font-size: 15px;
+      color: var(--text);
+    }
+
+    .login-dialog label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .login-dialog input {
+      width: 100%;
+      margin: 3px 0 8px;
+      padding: 7px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: rgba(2, 6, 13, .72);
+      color: var(--text);
+      -webkit-app-region: no-drag;
+    }
+
+    .login-dialog button {
+      width: 100%;
+      min-height: 30px;
+      margin-top: 2px;
+    }
+
+    .login-help {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.35;
+    }
+
     .spell-picker {
       display: grid;
       grid-template-columns: repeat(3, 34px);
@@ -695,6 +738,26 @@
     </div>
   </div>
 
+  <div class="modal" id="loginModal" aria-hidden="true">
+    <form class="dialog login-dialog" id="loginForm">
+      <h2>Overlay Login</h2>
+      <label>
+        Server
+        <input id="loginServer" type="url" autocomplete="off" spellcheck="false" required>
+      </label>
+      <label>
+        ID
+        <input id="loginUsername" type="text" autocomplete="username" required>
+      </label>
+      <label>
+        Password
+        <input id="loginPassword" type="password" autocomplete="current-password" required>
+      </label>
+      <button id="loginSubmit" type="submit">Login</button>
+      <div class="login-help" id="loginHelp">Admin account can control timers. Normal accounts are view only.</div>
+    </form>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script>
@@ -749,11 +812,19 @@
       connected: false,
       canControl: false,
       applyingRemote: false,
-      retryTimer: null
+      retryTimer: null,
+      loginOpen: false
     };
 
     const board = document.querySelector("#board");
     const modal = document.querySelector("#modal");
+    const loginModal = document.querySelector("#loginModal");
+    const loginForm = document.querySelector("#loginForm");
+    const loginServer = document.querySelector("#loginServer");
+    const loginUsername = document.querySelector("#loginUsername");
+    const loginPassword = document.querySelector("#loginPassword");
+    const loginSubmit = document.querySelector("#loginSubmit");
+    const loginHelp = document.querySelector("#loginHelp");
     const spellPicker = document.querySelector("#spellPicker");
     const toast = document.querySelector("#toast");
     const isElectron = Boolean(window.overlayAPI);
@@ -777,8 +848,9 @@
       if (!config?.enabled || !config.serverUrl) return;
       sync.enabled = true;
       sync.serverUrl = config.serverUrl.replace(/\/+$/, "");
-      sync.token = config.token || "";
-      connectSyncSocket();
+      sync.token = "";
+      loginServer.value = sync.serverUrl;
+      openLogin("Login to sync overlay.");
     }
 
     function connectSyncSocket() {
@@ -804,6 +876,12 @@
         const message = JSON.parse(event.data);
         if (message.type === "hello") {
           sync.canControl = Boolean(message.canControl);
+          if (!message.user) {
+            sync.token = "";
+            openLogin("Login expired. Please login again.");
+          } else {
+            closeLogin();
+          }
           return;
         }
         if (message.type === "state") {
@@ -870,6 +948,64 @@
       return true;
     }
 
+    function openLogin(message = "") {
+      if (!sync.enabled) return;
+      sync.loginOpen = true;
+      loginServer.value = sync.serverUrl || loginServer.value || "https://posung-lol-match.win";
+      loginHelp.textContent = message || "Admin account can control timers. Normal accounts are view only.";
+      loginModal.classList.add("open");
+      loginModal.setAttribute("aria-hidden", "false");
+      window.overlayAPI?.setLoginMode?.(true);
+      requestAnimationFrame(() => loginUsername.focus());
+    }
+
+    function closeLogin() {
+      sync.loginOpen = false;
+      loginModal.classList.remove("open");
+      loginModal.setAttribute("aria-hidden", "true");
+      window.overlayAPI?.setLoginMode?.(false);
+    }
+
+    async function loginToServer() {
+      const serverUrl = loginServer.value.trim().replace(/\/+$/, "");
+      const username = loginUsername.value.trim();
+      const password = loginPassword.value;
+      if (!serverUrl || !username || !password) return;
+      loginSubmit.disabled = true;
+      loginSubmit.textContent = "Logging in...";
+      loginHelp.textContent = "Connecting...";
+      try {
+        const body = new URLSearchParams();
+        body.set("username", username);
+        body.set("password", password);
+        const response = await fetch(`${serverUrl}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body
+        });
+        if (!response.ok) throw new Error("Login failed.");
+        const data = await response.json();
+        sync.enabled = true;
+        sync.serverUrl = serverUrl;
+        sync.token = data.access_token || "";
+        const result = await window.overlayAPI?.saveSyncConfig?.({
+          enabled: true,
+          serverUrl: sync.serverUrl,
+          token: ""
+        });
+        if (result && !result.ok) throw new Error(result.error || "Could not save login.");
+        loginPassword.value = "";
+        closeLogin();
+        sync.socket?.close();
+        connectSyncSocket();
+      } catch (error) {
+        loginHelp.textContent = error?.message || "Login failed.";
+      } finally {
+        loginSubmit.disabled = false;
+        loginSubmit.textContent = "Login";
+      }
+    }
+
     async function loadDdragonSpells() {
       try {
         const response = await fetch(`${CDN}/data/ko_KR/summoner.json`);
@@ -913,6 +1049,10 @@
       document.querySelector("#closeModal").addEventListener("click", closePicker);
       modal.addEventListener("click", event => {
         if (event.target === modal) closePicker();
+      });
+      loginForm.addEventListener("submit", event => {
+        event.preventDefault();
+        loginToServer();
       });
 
       ["cosmic", "ionian", "unleashed"].forEach(id => {

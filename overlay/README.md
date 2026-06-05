@@ -18,7 +18,7 @@ Users without an admin token can still view the shared overlay state, but their 
 
 1. Copy `overlay-config.example.json` to `overlay-config.json`.
 2. Set `serverUrl` to the deployed matchmaker site URL.
-3. Put a JWT token in `token` only for an admin-controlled overlay.
+3. Run the overlay and log in with the website account.
 
 Example:
 
@@ -26,14 +26,16 @@ Example:
 {
   "enabled": true,
   "serverUrl": "https://posung-lol-match.win",
-  "token": "paste-admin-jwt-here"
+  "token": ""
 }
 ```
 
 If `overlay-config.json` does not exist, the overlay keeps working as a local-only overlay.
 
-## Getting A Token
+## Login
 
-For now, log in to the website and use the token stored by the frontend in browser `localStorage` under the key `token`.
+When sync is enabled and no saved token exists, the overlay opens a login form.
 
-Later this can be replaced with an overlay login screen if manual token copying becomes annoying.
+Admin accounts can control timers. Normal approved users can view the shared state, but clicks are blocked by the server.
+
+The overlay saves only `serverUrl`. Login tokens are kept in memory, so users log in again after restarting the overlay.
