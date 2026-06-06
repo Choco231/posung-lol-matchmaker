@@ -25,6 +25,7 @@ export default function TeamBuilder({ token }) {
   const [page, setPage]               = useState(0);   // 0-indexed
   const [loading, setLoading]         = useState(false);
   const [sortBy, setSortBy]           = useState('preference'); // 'balance' | 'preference'
+  const [sideOffset, setSideOffset]   = useState(0);
   const [recentSelectionLoaded, setRecentSelectionLoaded] = useState(false);
 
   useEffect(() => {
@@ -151,6 +152,7 @@ export default function TeamBuilder({ token }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       setMatchups(res.data.matchups);
+      setSideOffset(Math.random() < 0.5 ? 0 : 1);
       setTotal(res.data.total);
     } catch (err) {
       alert('매칭 실패: ' + (err.response?.data?.detail || err.message));
@@ -225,8 +227,19 @@ export default function TeamBuilder({ token }) {
     return a.diff - b.diff; // balance: MMR 차이 적은 순 (오름차순)
   });
 
-  const totalPages    = Math.ceil(sortedMatchups.length / PAGE_SIZE);
-  const paginated     = sortedMatchups.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const displayedMatchups = sortedMatchups.map((matchup, index) => {
+    if ((index + sideOffset) % 2 === 0) return matchup;
+    return {
+      ...matchup,
+      team_a: matchup.team_b,
+      team_b: matchup.team_a,
+      mmr_a: matchup.mmr_b,
+      mmr_b: matchup.mmr_a,
+    };
+  });
+
+  const totalPages    = Math.ceil(displayedMatchups.length / PAGE_SIZE);
+  const paginated     = displayedMatchups.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const selectablePlayers = activeSlot
     ? [...players].sort((a, b) => {
         const priority = { preferred: 0, non_preferred: 1, impossible: 2 };
