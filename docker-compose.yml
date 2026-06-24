@@ -3,6 +3,7 @@ services:
     build: ./backend
     image: loltc-backend
     container_name: loltc-backend
+    restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
@@ -16,6 +17,7 @@ services:
     build: ./frontend
     image: loltc-frontend
     container_name: loltc-frontend
+    restart: unless-stopped
     ports:
       - "5173:5173"
     volumes:
