@@ -11,6 +11,7 @@ env/
 # Database
 *.db
 *.sqlite3
+!backend/loltc_data.db
 
 # Backend utility/temp files
 backend/db_manager.py
