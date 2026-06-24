@@ -216,6 +216,30 @@ npm install
 npm run dev
 ```
 
+### AWS Lightsail 상시 실행 systemd 배포
+
+Docker 없이 Ubuntu 서버에 직접 배포하려면 아래 스크립트를 사용합니다.
+
+```bash
+sudo bash deploy/install-lightsail-systemd.sh
+```
+
+이 스크립트는 다음을 자동으로 설정합니다.
+
+- Python 가상환경 생성 및 백엔드 의존성 설치
+- React 프론트엔드 `npm run build`
+- Nginx로 프론트엔드 정적 파일 서빙
+- `/api/*` 요청을 FastAPI 백엔드로 프록시
+- `posung-lol-backend` systemd 서비스 등록
+- 서버 재부팅 후 자동 실행 및 실패 시 자동 재시작
+
+서비스 확인:
+
+```bash
+sudo systemctl status posung-lol-backend --no-pager --full
+sudo journalctl -u posung-lol-backend -f
+```
+
 ## 운영 시 확인 사항
 
 - `backend/loltc_data.db`는 로컬 SQLite 실행 데이터이며 백업 없이 삭제하면 기록이 사라집니다.
