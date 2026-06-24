@@ -1,26 +1,5 @@
 # POSUNG LOL MATCHMAKER
 
-## LoL Spell Overlay Sync
-
-이 저장소에는 사이트와 함께 사용할 수 있는 Electron overlay가 `overlay/` 폴더에 포함되어 있습니다.
-
-동작 흐름:
-
-```text
-관리자 overlay 클릭
-  -> FastAPI WebSocket 서버가 관리자 토큰 확인
-  -> spell check 중앙 상태 저장
-  -> 사이트 `/spellcheck`와 모든 접속 overlay에 broadcast
-```
-
-- 사이트 상태 확인 페이지: `/spellcheck`
-- 현재 상태 조회: `GET /api/spellcheck/state`
-- 관리자 상태 변경: `POST /api/spellcheck/state`
-- overlay 실시간 연결: `WS /api/spellcheck/ws`
-- overlay 설정 예시: `overlay/overlay-config.example.json`
-
-`overlay/overlay-config.json`이 없으면 overlay는 기존처럼 로컬 전용으로 동작합니다. 서버 동기화를 쓰려면 예시 파일을 복사해서 `serverUrl`을 사이트 주소로 설정하고, 관리자 overlay에는 사이트 로그인 JWT를 `token`에 넣으면 됩니다.
-
 League of Legends 내전 참가자를 관리하고, 포지션별 TrueSkill MMR을 기반으로 균형 잡힌 5 대 5 팀을 찾고, 실전/가상 경기 결과를 기록하는 웹 애플리케이션입니다.
 
 ## 주요 기능
